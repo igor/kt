@@ -115,3 +115,18 @@ export function deleteNode(id: string): void {
   db.prepare('DELETE FROM links WHERE source_id = ? OR target_id = ?').run(id, id);
   db.prepare('DELETE FROM nodes WHERE id = ?').run(id);
 }
+
+export function getPendingEmbeddings(limit: number = 50): Node[] {
+  const db = getDatabase();
+  const rows = db.prepare(
+    'SELECT * FROM nodes WHERE embedding_pending = 1 ORDER BY created_at ASC LIMIT ?'
+  ).all(limit);
+  return rows.map(rowToNode);
+}
+
+export function markEmbeddingDone(id: string): void {
+  const db = getDatabase();
+  db.prepare(
+    "UPDATE nodes SET embedding_pending = 0, updated_at = datetime('now') WHERE id = ?"
+  ).run(id);
+}
