@@ -1,5 +1,6 @@
 import { getDatabase } from '../db/connection.js';
 import type { Node } from './nodes.js';
+import { searchSimilar } from '../db/vec.js';
 
 interface SearchOptions {
   namespace?: string;
@@ -35,4 +36,55 @@ export function searchNodes(query: string, options: SearchOptions = {}): Node[] 
   ).all(...params, limit);
 
   return rows.map(rowToNode);
+}
+
+interface SemanticSearchOptions {
+  namespace?: string;
+  limit?: number;
+  excludeIds?: string[];
+}
+
+export function semanticSearch(
+  queryEmbedding: Float32Array,
+  options: SemanticSearchOptions = {},
+): Node[] {
+  const limit = options.limit || 10;
+
+  // Get candidates from vec search (fetch more than needed to allow filtering)
+  const candidates = searchSimilar(queryEmbedding, limit * 3);
+
+  if (candidates.length === 0) return [];
+
+  const db = getDatabase();
+  const nodeIds = candidates.map(c => c.node_id);
+  const placeholders = nodeIds.map(() => '?').join(',');
+
+  const conditions: string[] = [
+    `id IN (${placeholders})`,
+    "status != 'compacted'",
+  ];
+  const params: any[] = [...nodeIds];
+
+  if (options.namespace) {
+    conditions.push('namespace = ?');
+    params.push(options.namespace);
+  }
+
+  if (options.excludeIds && options.excludeIds.length > 0) {
+    const exPlaceholders = options.excludeIds.map(() => '?').join(',');
+    conditions.push(`id NOT IN (${exPlaceholders})`);
+    params.push(...options.excludeIds);
+  }
+
+  const where = `WHERE ${conditions.join(' AND ')}`;
+  const rows = db.prepare(`SELECT * FROM nodes ${where}`).all(...params);
+
+  // Preserve the similarity ordering from vec search
+  const nodeMap = new Map(rows.map(r => [(r as any).id, r]));
+  const ordered = nodeIds
+    .filter(id => nodeMap.has(id))
+    .map(id => rowToNode(nodeMap.get(id)))
+    .slice(0, limit);
+
+  return ordered;
 }
