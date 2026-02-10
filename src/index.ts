@@ -37,4 +37,7 @@ program.addCommand(statsCommand());
 program.addCommand(contextCommand());
 program.addCommand(embedCommand());
 
-program.parse();
+program.parseAsync().catch((err) => {
+  console.error(err.message || err);
+  process.exit(1);
+});
