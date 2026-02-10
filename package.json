@@ -1,0 +1,30 @@
+{
+  "name": "kt",
+  "version": "0.1.0",
+  "description": "CLI-first knowledge tracker for AI agents",
+  "type": "module",
+  "bin": {
+    "kt": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "commander": "^14.0.3",
+    "sqlite-vec": "^0.1.7-alpha.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
