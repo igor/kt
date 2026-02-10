@@ -1,7 +1,9 @@
 import { Command } from 'commander';
-import { createNode } from '../../core/nodes.js';
+import { captureWithIntelligence } from '../../core/capture.js';
+import { generateEmbedding } from '../../core/embeddings.js';
 import { ensureNamespace } from '../../core/namespaces.js';
 import { resolveNamespace } from '../../core/mappings.js';
+import { formatNodeBrief } from '../format.js';
 
 export function captureCommand(): Command {
   return new Command('capture')
@@ -10,19 +12,43 @@ export function captureCommand(): Command {
     .option('-n, --namespace <ns>', 'Namespace')
     .option('-t, --title <title>', 'Title for the node')
     .option('--tags <tags>', 'Comma-separated tags')
-    .action((content, options) => {
+    .option('--no-link', 'Skip auto-linking')
+    .action(async (content, options) => {
       const namespace = options.namespace || resolveNamespace(process.cwd()) || 'default';
       ensureNamespace(namespace);
 
       const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : undefined;
 
-      const node = createNode({
+      // Try to generate embedding (graceful if Ollama is down)
+      const text = options.title ? `${options.title}\n${content}` : content;
+      const embedding = await generateEmbedding(text);
+
+      const result = captureWithIntelligence({
         namespace,
         content,
         title: options.title,
         tags,
+        embedding,
+        autoLink: options.link !== false,
       });
 
-      console.log(node.id);
+      // Output the node ID (primary output for agents)
+      console.log(result.node.id);
+
+      // If similar nodes found, mention them (stderr so it doesn't break piping)
+      if (result.similar.length > 0) {
+        console.error(`\nSimilar existing knowledge:`);
+        for (const s of result.similar.slice(0, 3)) {
+          console.error(`  ${formatNodeBrief(s)}`);
+        }
+      }
+
+      if (result.autoLinked.length > 0) {
+        console.error(`Auto-linked to ${result.autoLinked.length} related node(s).`);
+      }
+
+      if (!embedding) {
+        console.error('(Embedding pending — run `kt embed` when Ollama is available)');
+      }
     });
 }
