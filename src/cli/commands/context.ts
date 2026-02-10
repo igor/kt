@@ -1,17 +1,20 @@
 import { Command } from 'commander';
 import { listNodes } from '../../core/nodes.js';
-import { getConflicts } from '../../core/links.js';
+import { getConflicts, getLinks } from '../../core/links.js';
 import { resolveNamespace } from '../../core/mappings.js';
+import { getDatabase } from '../../db/connection.js';
 import { detectFormat, type Format } from '../format.js';
 
 interface ContextBrief {
   namespace: string | null;
   loaded_at: string;
+  total_nodes: number;
   active_nodes: {
     id: string;
     title: string | null;
     summary: string;
     updated_at: string;
+    links_out: number;
   }[];
   conflicts: {
     node_a: string;
@@ -22,7 +25,19 @@ interface ContextBrief {
     id: string;
     title: string | null;
     stale_since: string | null;
+    reason: string;
   }[];
+}
+
+function getStaleReason(node: any): string {
+  const db = getDatabase();
+  // Check if superseded
+  const superseded = db.prepare(
+    "SELECT COUNT(*) as c FROM links WHERE target_id = ? AND link_type = 'supersedes'"
+  ).get(node.id) as { c: number };
+  if (superseded.c > 0) return 'superseded';
+
+  return `age`;
 }
 
 export function contextCommand(): Command {
@@ -34,6 +49,13 @@ export function contextCommand(): Command {
     .action((options) => {
       const namespace = options.namespace || resolveNamespace(process.cwd()) || null;
       const limit = parseInt(options.limit);
+      const db = getDatabase();
+
+      // Total node count for this namespace
+      const countQuery = namespace
+        ? db.prepare("SELECT COUNT(*) as c FROM nodes WHERE namespace = ? AND status = 'active'").get(namespace)
+        : db.prepare("SELECT COUNT(*) as c FROM nodes WHERE status = 'active'").get();
+      const totalNodes = (countQuery as { c: number }).c;
 
       const activeNodes = listNodes({
         namespace: namespace || undefined,
@@ -52,11 +74,13 @@ export function contextCommand(): Command {
       const brief: ContextBrief = {
         namespace,
         loaded_at: new Date().toISOString(),
+        total_nodes: totalNodes,
         active_nodes: activeNodes.map(n => ({
           id: n.id,
           title: n.title,
           summary: n.content.substring(0, 200) + (n.content.length > 200 ? '...' : ''),
           updated_at: n.updated_at,
+          links_out: getLinks(n.id).length,
         })),
         conflicts: conflicts.map(c => ({
           node_a: c.nodeA,
@@ -67,6 +91,7 @@ export function contextCommand(): Command {
           id: n.id,
           title: n.title,
           stale_since: n.stale_at,
+          reason: getStaleReason(n),
         })),
       };
 
@@ -75,12 +100,13 @@ export function contextCommand(): Command {
       if (format === 'json') {
         console.log(JSON.stringify(brief, null, 2));
       } else {
-        console.log(`Context: ${namespace || '(all namespaces)'}`);
+        console.log(`Context: ${namespace || '(all namespaces)'} (${totalNodes} active nodes)`);
         console.log('');
         if (brief.active_nodes.length > 0) {
           console.log('Active knowledge:');
           for (const n of brief.active_nodes) {
-            console.log(`  [${n.id}] ${n.title || '(untitled)'}`);
+            const linkInfo = n.links_out > 0 ? ` [${n.links_out} links]` : '';
+            console.log(`  [${n.id}] ${n.title || '(untitled)'}${linkInfo}`);
             console.log(`    ${n.summary}`);
           }
         }
@@ -93,8 +119,11 @@ export function contextCommand(): Command {
         if (brief.stale_alerts.length > 0) {
           console.log('\nStale:');
           for (const n of brief.stale_alerts) {
-            console.log(`  [${n.id}] ${n.title || '(untitled)'} — stale since ${n.stale_since}`);
+            console.log(`  [${n.id}] ${n.title || '(untitled)'} — ${n.reason} (since ${n.stale_since})`);
           }
+        }
+        if (totalNodes === 0 && brief.stale_alerts.length === 0) {
+          console.log('No knowledge captured yet. Use `kt capture` to start.');
         }
       }
     });

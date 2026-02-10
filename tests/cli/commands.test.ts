@@ -78,4 +78,17 @@ describe('CLI integration', () => {
     expect(ctx.namespace).toBe('test');
     expect(ctx.active_nodes.length).toBeGreaterThan(0);
   });
+
+  it('context includes node_count and link_count per node', () => {
+    kt('ns create ctx --name "Context Test"');
+    const id1 = kt('capture "First knowledge" --namespace ctx --title "First"').match(/kt-[a-f0-9]{6}/)![0];
+    const id2 = kt('capture "Second knowledge" --namespace ctx --title "Second"').match(/kt-[a-f0-9]{6}/)![0];
+    kt(`link ${id1} related ${id2}`);
+
+    const output = kt('context --namespace ctx --format json');
+    const ctx = JSON.parse(output);
+
+    expect(ctx.total_nodes).toBe(2);
+    expect(ctx.active_nodes[0]).toHaveProperty('links_out');
+  });
 });
