@@ -7,7 +7,7 @@
     "kt": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/db && cp src/db/schema.sql dist/db/",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
