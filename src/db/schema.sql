@@ -41,3 +41,8 @@ CREATE TABLE IF NOT EXISTS project_mappings (
   directory_pattern TEXT PRIMARY KEY,
   namespace         TEXT NOT NULL REFERENCES namespaces(slug)
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS node_embeddings USING vec0(
+  node_id TEXT PRIMARY KEY,
+  embedding FLOAT[768]
+);

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import * as sqliteVec from 'sqlite-vec';
 
 let db: Database.Database | null = null;
 
@@ -14,6 +15,9 @@ export function createDatabase(dbPath: string): Database.Database {
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+
+  // Load sqlite-vec extension for vector search
+  sqliteVec.load(db);
 
   // Run schema
   const schemaPath = new URL('schema.sql', import.meta.url).pathname;
