@@ -2,6 +2,15 @@
 
 CLI-first knowledge management for AI agents. Capture insights, build context, and let your knowledge base clean itself over time.
 
+## Why?
+
+This started as an exploration to build something that combines ideas from:
+- **[ai-wiki](https://github.com/zeigor/ai-wiki)** — My personal knowledge wiki with semantic search
+- **[Beads](https://github.com/beadorg/bead)** — Knowledge management designed for programmers
+- But **fully local** — SQLite + Ollama, no cloud dependencies (except optional Claude API for compaction)
+
+The goal was to understand how to make a self-maintaining knowledge system that works seamlessly with AI agents in the terminal.
+
 ## Features
 
 - **Capture & Link:** Save knowledge nodes with automatic relationship detection
