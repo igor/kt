@@ -34,7 +34,7 @@ The goal was to understand how to make a self-maintaining knowledge system that 
 ## Install
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/igor/kt.git
 cd kt
 npm install
 npm run build
