@@ -8,7 +8,9 @@ export interface SimilarResult {
 export function insertEmbedding(nodeId: string, embedding: Float32Array): void {
   const db = getDatabase();
   const buf = Buffer.from(embedding.buffer);
-  db.prepare('INSERT OR REPLACE INTO node_embeddings (node_id, embedding) VALUES (?, ?)').run(
+  // Delete first to avoid UNIQUE constraint issues with vec0 virtual table
+  db.prepare('DELETE FROM node_embeddings WHERE node_id = ?').run(nodeId);
+  db.prepare('INSERT INTO node_embeddings (node_id, embedding) VALUES (?, ?)').run(
     nodeId,
     buf,
   );
