@@ -2,6 +2,17 @@
 
 CLI-first knowledge management for AI agents. Capture insights, build context, and let your knowledge base clean itself over time.
 
+## ⚠️ Disclaimer
+
+**This is an experimental exploration project.** Use at your own risk. It:
+- Was built to understand local knowledge management patterns
+- Has not been battle-tested in production
+- May have bugs, edge cases, or data integrity issues
+- Could modify or delete your knowledge nodes during compaction
+- Is provided as-is with no guarantees or warranties
+
+**Back up your database before using compaction features.**
+
 ## Why?
 
 This started as an exploration to build something that combines ideas from:
@@ -99,16 +110,11 @@ This project uses `kt` for knowledge tracking.
 
 See `docs/claude-md-snippet.md` for the full snippet.
 
-## Development Phases
-
-- **Phase 1:** Core CRUD, links, namespaces, keyword search
-- **Phase 2:** Semantic search, Ollama embeddings, smart capture, auto-linking
-- **Phase 3:** Context loading, session-start hooks, `/capture` skill
-- **Phase 4:** Staleness detection, clustering, Claude summarization, compaction pipeline
-
 ## Status
 
-✅ **v0.4.0** — All 4 phases implemented. Full knowledge lifecycle: capture → search → context → stale → cluster → compact → repeat.
+**v0.1.0** — Experimental implementation complete. Full knowledge lifecycle: capture → search → context → stale → cluster → compact → repeat.
+
+The project was built in four implementation phases (CRUD → semantic search → Claude integration → compaction), but this is the first release now that all pieces work together.
 
 ## Requirements
 
