@@ -14,6 +14,7 @@ import { staleCommand } from './cli/commands/stale.js';
 import { statsCommand } from './cli/commands/stats.js';
 import { contextCommand } from './cli/commands/context.js';
 import { embedCommand } from './cli/commands/embed.js';
+import { compactCommand } from './cli/commands/compact.js';
 
 // Initialize database
 const dbPath = process.env.KT_DB_PATH || getDefaultDbPath();
@@ -36,6 +37,7 @@ program.addCommand(staleCommand());
 program.addCommand(statsCommand());
 program.addCommand(contextCommand());
 program.addCommand(embedCommand());
+program.addCommand(compactCommand());
 
 program.parseAsync().catch((err) => {
   console.error(err.message || err);
