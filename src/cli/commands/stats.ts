@@ -9,6 +9,8 @@ interface Stats {
   compacted: number;
   by_namespace: { namespace: string; count: number }[];
   pending_embeddings: number;
+  compaction_summaries: number;
+  oldest_active: string | null;
 }
 
 export function statsCommand(): Command {
@@ -23,6 +25,11 @@ export function statsCommand(): Command {
       const stale = (db.prepare("SELECT COUNT(*) as c FROM nodes WHERE status = 'stale'").get() as any).c;
       const compacted = (db.prepare("SELECT COUNT(*) as c FROM nodes WHERE status = 'compacted'").get() as any).c;
       const pending = (db.prepare('SELECT COUNT(*) as c FROM nodes WHERE embedding_pending = 1').get() as any).c;
+      const summaries = (db.prepare("SELECT COUNT(*) as c FROM nodes WHERE source_type = 'compaction'").get() as any).c;
+
+      const oldest = db.prepare(
+        "SELECT updated_at FROM nodes WHERE status = 'active' ORDER BY updated_at ASC LIMIT 1"
+      ).get() as { updated_at: string } | undefined;
 
       const byNs = db.prepare(
         "SELECT namespace, COUNT(*) as count FROM nodes WHERE status != 'compacted' GROUP BY namespace ORDER BY count DESC"
@@ -35,6 +42,8 @@ export function statsCommand(): Command {
         compacted,
         by_namespace: byNs,
         pending_embeddings: pending,
+        compaction_summaries: summaries,
+        oldest_active: oldest?.updated_at || null,
       };
 
       const format: Format = options.format || detectFormat(Boolean(process.stdout.isTTY));
@@ -43,7 +52,11 @@ export function statsCommand(): Command {
         console.log(JSON.stringify(stats, null, 2));
       } else {
         console.log(`Total: ${total}  (active: ${active}, stale: ${stale}, compacted: ${compacted})`);
+        console.log(`Compaction summaries: ${summaries}`);
         console.log(`Pending embeddings: ${pending}`);
+        if (oldest) {
+          console.log(`Oldest active node: ${oldest.updated_at}`);
+        }
         if (byNs.length > 0) {
           console.log('\nBy namespace:');
           for (const ns of byNs) {
