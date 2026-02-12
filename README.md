@@ -24,6 +24,7 @@ The goal was to understand how to make a self-maintaining knowledge system that 
 
 ## Features
 
+- **Digest:** Type `kt` and get a synthesized briefing of recent knowledge — not a list of nodes, a coherent summary grouped by theme ([design notes](docs/design-digest-interaction.md))
 - **Capture & Link:** Save knowledge nodes with automatic relationship detection
 - **Semantic Search:** Vector-based similarity search via Ollama embeddings
 - **Smart Context:** Auto-loaded session context for AI agents
@@ -44,26 +45,31 @@ npm link
 ## Quick Start
 
 ```bash
-# Create a namespace
+# Create a namespace and map your project directory
 kt ns create my-project --name "My Project"
+kt map "/path/to/my-project/*" my-project
 
 # Capture knowledge
 kt capture "We decided on two-tier pricing: pro and enterprise" \
   --namespace my-project \
   --title "Pricing decision"
 
-# Search semantically (requires Ollama)
+# Get a synthesized briefing (requires ANTHROPIC_API_KEY)
+cd /path/to/my-project
+kt
+
+# Or search directly
 kt search "pricing model" --namespace my-project
 
-# Generate embeddings
-kt embed
+# List all nodes in a namespace
+kt list --namespace my-project
 
-# Load context (used by AI agents)
-kt context --namespace my-project
+# Generate embeddings (requires Ollama)
+kt embed
 
 # Review and compact stale knowledge
 kt compact --detect-stale --dry-run --namespace my-project
-kt compact --namespace my-project  # requires ANTHROPIC_API_KEY
+kt compact --namespace my-project
 ```
 
 ## Architecture
@@ -78,8 +84,10 @@ kt compact --namespace my-project  # requires ANTHROPIC_API_KEY
 
 | Command | Description |
 |---------|-------------|
+| `kt` | Synthesized digest of recent knowledge |
 | `kt capture <content>` | Save a knowledge node |
 | `kt search <query>` | Semantic or keyword search |
+| `kt list` | List nodes (filterable by namespace, status) |
 | `kt show <id>` | Display a specific node |
 | `kt link <source> <type> <target>` | Create relationship |
 | `kt context` | Load structured context brief |
@@ -88,6 +96,7 @@ kt compact --namespace my-project  # requires ANTHROPIC_API_KEY
 | `kt stale` | List stale nodes |
 | `kt stats` | Knowledge base statistics |
 | `kt ns create/list` | Manage namespaces |
+| `kt map <pattern> <ns>` | Map directories to namespaces |
 
 ## Claude Code Integration
 
