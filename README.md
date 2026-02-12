@@ -121,7 +121,7 @@ See `docs/claude-md-snippet.md` for the full snippet.
 
 ## Status
 
-**v0.1.0** — Experimental implementation complete. Full knowledge lifecycle: capture → search → context → stale → cluster → compact → repeat.
+**v0.2.0** — Digest feature: type `kt` to get a synthesized briefing of recent knowledge. Smart caching, `kt list` command, and namespace-filtered stats. See [design notes](docs/design-digest-interaction.md).
 
 The project was built in four implementation phases (CRUD → semantic search → Claude integration → compaction), but this is the first release now that all pieces work together.
 
