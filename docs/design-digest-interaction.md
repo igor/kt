@@ -12,30 +12,32 @@ Type `kt` in a project directory. Instead of a list of nodes, you get a synthesi
 
 ```
 ### Summary
-Strategic decisions for a Google DT/BCI project. Recent work:
-presentation framing, taxonomy clarity, four non-tech forces.
+A product strategy project exploring pricing models and launch timing.
+Recent work focused on tier structure, competitive positioning, and
+pilot partner selection.
 
 ### Key Topics
 
-**Presentation Approach**
-Statements + supporting thoughts, not frameworks. DT and BCI
-presented separately. Pick battles for 1hr check-in.
+**Pricing Architecture**
+Two-tier model: Pro ($49/mo) and Enterprise (custom). Decided against
+a free tier — conversion rates don't justify support costs at current
+scale.
 
-**Twin Taxonomy**
-4x3 matrix across agent/avatar/twin. Complementary stack layers,
-not alternatives. Google conflates these terms.
+**Competitive Positioning**
+Three direct competitors identified. Differentiator is the integration
+story, not features. Sales deck should lead with workflow, not specs.
 
-**Governance as Master Variable**
-Same tech, radically different UX under different governance regimes.
-Three meta-scenarios for 2034.
+**Pilot Program**
+Two partners confirmed for Q2. Third still in legal review. Risk:
+partner B wants custom SLA terms that could set precedent.
 
 ### Decisions & Rationale
-- Cultural examples over client research replay — only had 3 days.
-- Statements not frameworks — Natalia pushes back.
+- No free tier — support costs outweigh conversion at current scale.
+- Lead with workflow not features — competitors match on specs.
 
 ### Open Threads
-- Co-authored knowledge bases provocation — strong reframe but
-  potentially destabilizing for a first check-in.
+- Partner B's custom SLA request — need to decide if this sets
+  precedent before signing.
 
 Pick a topic to work on.
 ```
@@ -50,10 +52,10 @@ The interaction goes:
 
 1. `/kt` → Claude produces the briefing
 2. You scan it — takes 15 seconds
-3. You say: "let's work on governance"
+3. You say: "let's work on the pilot program"
 4. Claude loads the relevant nodes **into its own context** — you never see them
-5. Claude confirms: "Loaded — 2 nodes covering governance variables and three 2034 meta-scenarios. What do you want to do with it?"
-6. You work together: draft slides, refine arguments, whatever
+5. Claude confirms: "Loaded the pilot context — 3 nodes covering partner status, SLA negotiations, and timeline risks. What do you want to do with it?"
+6. You work together: draft an email, refine the SLA position, whatever
 
 The key move: **Claude reads the knowledge on your behalf.** You don't look up node IDs. You don't read raw content. You point at a topic and Claude equips itself to collaborate with you on it.
 
@@ -81,7 +83,7 @@ The menu pattern gives you scope control without the reading cost.
 
 ### For team knowledge
 
-When knowledge isn't in one person's head but distributed across captured nodes, the digest becomes a shared entry point. Two people looking at the same digest see the same structure. One says "I'll take governance, you take taxonomy" — and each gets Claude loaded with the right context for their thread.
+When knowledge isn't in one person's head but distributed across captured nodes, the digest becomes a shared entry point. Two people looking at the same digest see the same structure. One says "I'll take pricing, you take the pilot" — and each gets Claude loaded with the right context for their thread.
 
 ## How It Works Technically
 
