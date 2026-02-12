@@ -1,7 +1,14 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 import { getDatabase } from '../db/connection.js';
+import { listNodes } from './nodes.js';
+import { getLinks } from './links.js';
 import type { Node } from './nodes.js';
 import type { Link } from './links.js';
+
+const MODEL = 'claude-sonnet-4-5-20250929';
 
 export function computeNodeHash(nodes: Node[]): string {
   if (nodes.length === 0) return '';
@@ -88,4 +95,93 @@ Conflicts or stale knowledge that needs attention. Only include if present.
 - If nodes contradict each other, surface this in Open Threads
 - Do NOT add your own analysis or recommendations — just synthesize what's captured
 - Output ONLY the briefing markdown, no preamble`;
+}
+
+interface DigestOptions {
+  days?: number;
+  fresh?: boolean;
+  projectDir?: string;
+}
+
+function getRecentNodes(namespace: string, days: number): Node[] {
+  const allNodes = listNodes({ namespace, status: 'active' });
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().replace('T', ' ').substring(0, 19);
+  return allNodes.filter(n => n.created_at >= cutoffStr || n.updated_at >= cutoffStr);
+}
+
+function getLinksForNodes(nodes: Node[]): Link[] {
+  const nodeIds = new Set(nodes.map(n => n.id));
+  const allLinks: Link[] = [];
+  for (const node of nodes) {
+    const links = getLinks(node.id);
+    for (const link of links) {
+      if (nodeIds.has(link.target_id)) {
+        allLinks.push(link);
+      }
+    }
+  }
+  return allLinks;
+}
+
+function readClaudeMd(projectDir: string | undefined): string | null {
+  if (!projectDir) return null;
+  const claudeMdPath = path.join(projectDir, '.claude', 'CLAUDE.md');
+  try {
+    return fs.readFileSync(claudeMdPath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+export async function generateDigest(
+  namespace: string,
+  options: DigestOptions = {},
+): Promise<string> {
+  const days = options.days ?? 2;
+
+  const recentNodes = getRecentNodes(namespace, days);
+
+  if (recentNodes.length === 0) {
+    return `No recent knowledge captured in "${namespace}" (last ${days} day${days === 1 ? '' : 's'}). Use \`kt capture\` to add knowledge.`;
+  }
+
+  const nodeHash = computeNodeHash(recentNodes);
+
+  // Check cache (unless --fresh)
+  if (!options.fresh) {
+    const cached = getCachedDigest(namespace, nodeHash, days);
+    if (cached) return cached;
+  }
+
+  // Need API key for synthesis
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return 'Error: ANTHROPIC_API_KEY not set. The digest requires Claude to synthesize knowledge.\nSet it with: export ANTHROPIC_API_KEY=your-key';
+  }
+
+  const links = getLinksForNodes(recentNodes);
+  const claudeMd = readClaudeMd(options.projectDir);
+  const prompt = buildDigestPrompt(recentNodes, links, claudeMd);
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: MODEL,
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const block = message.content[0];
+    if (block.type === 'text') {
+      const digest = block.text.trim();
+      cacheDigest(namespace, digest, nodeHash, days);
+      return digest;
+    }
+
+    return 'Error: Unexpected response from Claude.';
+  } catch (err) {
+    return `Error generating digest: ${err instanceof Error ? err.message : err}`;
+  }
 }

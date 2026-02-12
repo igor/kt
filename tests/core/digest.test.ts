@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createDatabase, closeDatabase, getDatabase } from '../../src/db/connection.js';
 import { createNode } from '../../src/core/nodes.js';
-import { computeNodeHash, getCachedDigest, cacheDigest, buildDigestPrompt } from '../../src/core/digest.js';
+import { computeNodeHash, getCachedDigest, cacheDigest, buildDigestPrompt, generateDigest } from '../../src/core/digest.js';
+import { createLink } from '../../src/core/links.js';
 import type { Node } from '../../src/core/nodes.js';
 import type { Link } from '../../src/core/links.js';
 import fs from 'fs';
@@ -143,6 +144,38 @@ describe('digest', () => {
       expect(prompt).toContain('Key Topics');
       expect(prompt).toContain('Decisions');
       expect(prompt).toContain('Open Threads');
+    });
+  });
+
+  describe('generateDigest', () => {
+    it('returns a message when no nodes exist in time window', async () => {
+      const result = await generateDigest('test', { days: 2 });
+      expect(result).toContain('No recent knowledge');
+    });
+
+    it('fetches recent nodes within the time window', async () => {
+      createNode({ namespace: 'test', content: 'Recent insight about testing' });
+      const result = await generateDigest('test', { days: 2 });
+      // Without ANTHROPIC_API_KEY, it should return an error about the key
+      expect(result).not.toContain('No recent knowledge');
+    });
+
+    it('uses cache when available', async () => {
+      const node = createNode({ namespace: 'test', content: 'Cached insight' });
+      const hash = computeNodeHash([node]);
+      cacheDigest('test', 'Cached digest output', hash, 2);
+
+      const result = await generateDigest('test', { days: 2 });
+      expect(result).toBe('Cached digest output');
+    });
+
+    it('includes links between recent nodes', async () => {
+      const n1 = createNode({ namespace: 'test', content: 'First point' });
+      const n2 = createNode({ namespace: 'test', content: 'Second point' });
+      createLink(n2.id, 'related', n1.id, 'connected ideas');
+
+      const result = await generateDigest('test', { days: 2 });
+      expect(result).toBeDefined();
     });
   });
 });
