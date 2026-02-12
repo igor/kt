@@ -15,6 +15,7 @@ import { statsCommand } from './cli/commands/stats.js';
 import { contextCommand } from './cli/commands/context.js';
 import { embedCommand } from './cli/commands/embed.js';
 import { compactCommand } from './cli/commands/compact.js';
+import { listCommand } from './cli/commands/list.js';
 import { runDigest } from './cli/commands/digest.js';
 
 // Initialize database
@@ -50,6 +51,7 @@ program.addCommand(statsCommand());
 program.addCommand(contextCommand());
 program.addCommand(embedCommand());
 program.addCommand(compactCommand());
+program.addCommand(listCommand());
 
 program.parseAsync().catch((err) => {
   console.error(err.message || err);
