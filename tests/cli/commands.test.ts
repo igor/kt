@@ -79,6 +79,11 @@ describe('CLI integration', () => {
     expect(ctx.active_nodes.length).toBeGreaterThan(0);
   });
 
+  it('bare kt with no mapped namespace shows helpful message', () => {
+    const output = kt('');
+    expect(output).toContain('No namespace mapped');
+  });
+
   it('context includes node_count and link_count per node', () => {
     kt('ns create ctx --name "Context Test"');
     const id1 = kt('capture "First knowledge" --namespace ctx --title "First"').match(/kt-[a-f0-9]{6}/)![0];
