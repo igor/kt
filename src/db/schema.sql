@@ -46,3 +46,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS node_embeddings USING vec0(
   node_id TEXT PRIMARY KEY,
   embedding FLOAT[768]
 );
+
+CREATE TABLE IF NOT EXISTS digests (
+  namespace    TEXT PRIMARY KEY,
+  content      TEXT NOT NULL,
+  generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  node_hash    TEXT NOT NULL,
+  days         INTEGER NOT NULL
+);
