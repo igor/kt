@@ -1,5 +1,5 @@
 ---
-name: capture
+name: kapture
 description: Capture knowledge from this session into kt
 user-invocable: true
 ---
@@ -46,7 +46,7 @@ Where:
 ## Example
 
 ```
-User: /capture
+User: /kapture
 
 Claude: From this session, I identified these worth capturing:
 

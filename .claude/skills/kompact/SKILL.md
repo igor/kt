@@ -1,5 +1,5 @@
 ---
-name: compact
+name: kompact
 description: Review and compact stale knowledge in kt
 user-invocable: true
 ---
@@ -44,7 +44,7 @@ kt compact --namespace <ns>
 ## Example
 
 ```
-User: /compact
+User: /kompact
 
 Claude: Let me check for compaction candidates...
 
