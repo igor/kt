@@ -14,7 +14,7 @@ This project builds `kt`, a CLI knowledge tracker. You have access to the `kt` c
 - If search returns nothing, proceed normally
 
 ### After Meaningful Work
-- Suggest `/capture` if decisions were made or insights emerged worth persisting
+- Suggest `/kapture` if decisions were made or insights emerged worth persisting
 - Don't capture trivial or temporary information
 - Each captured node should be self-contained and readable without session context
 

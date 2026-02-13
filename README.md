@@ -114,7 +114,7 @@ This project uses `kt` for knowledge tracking.
 - When you encounter a client name, strategic concept, or domain that may have prior knowledge, run `kt search "<topic>"` before proceeding
 
 ### After Meaningful Work
-- Suggest `/capture` if decisions were made or insights emerged worth persisting
+- Suggest `/kapture` if decisions were made or insights emerged worth persisting
 ```
 
 See `docs/claude-md-snippet.md` for the full snippet.
