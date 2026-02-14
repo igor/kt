@@ -24,35 +24,74 @@ Inspired by the OpenAI engineering team's approach: don't write one massive inst
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌────────┐
-│ ccvault sync │ ──▶ │ kt-harvest   │ ──▶ │ Ollama LLM  │ ──▶ │ kt     │
-│ (index new)  │     │ (orchestrator)│     │ (extraction) │     │capture │
-└─────────────┘     └──────────────┘     └─────────────┘     └────────┘
+┌─────────────┐     ┌──────────────┐     ┌─────────┐     ┌───────────┐     ┌──────────┐     ┌────────┐
+│ ccvault sync │ ──▶ │ kt-harvest   │ ──▶ │ SCANNER │ ──▶ │ EXTRACTOR │ ──▶ │ VERIFIER │ ──▶ │ kt     │
+│ (index new)  │     │ (orchestrator)│     │ (flag)  │     │ (produce)  │     │ (gate)   │     │capture │
+└─────────────┘     └──────────────┘     └─────────┘     └───────────┘     └──────────┘     └────────┘
 ```
+
+### Three-Agent Pipeline
+
+Inspired by Erik Garrison's observation that complex AI workflows need **separate agents with separate definitions**, each responsible for one clear job. A single agent doing scanning, classifying, extracting, and quality-checking simultaneously produces worse results than three focused agents — each sees less context, gets clearer instructions, and can be evaluated independently.
+
+**Agent 1 — Scanner:** Reads the preprocessed transcript. For each turn, outputs YES or NO: does this turn contain potential knowledge? No extraction, no formatting — just flagging. Short, focused prompt. The golden principles live here.
+
+**Agent 2 — Extractor:** Receives only the flagged turns (not the full transcript). Produces structured JSON nodes with title, content, type, namespace, tags. The node type taxonomy lives here.
+
+**Agent 3 — Verifier:** Receives each candidate node. Checks: Is it self-contained? Is it genuinely worth keeping (not just interesting)? Does it duplicate knowledge already in kt? Pass or reject. This is the custodian — the quality gate before anything enters kt.
+
+This design means:
+- Each agent has a **short, focused prompt** (better for local models with limited context)
+- The scanner filters out ~80% of turns, so the extractor sees only signal
+- The verifier catches garbage before it enters kt (not after, via `/kompact`)
+- Each agent can be evaluated and improved independently
+- Agent definitions can evolve based on evaluation results (per Erik's "what evolves are agent definitions")
+
+### Components
 
 **ccvault** (external, not forked): Parses raw Claude Code JSONL session files into a searchable SQLite database. Provides CLI for listing sessions, exporting transcripts, and searching. Maintained upstream at github.com/2389-research/ccvault.
 
-**kt-harvest** (new, this project): Orchestration script that bridges ccvault and kt. Reads unprocessed sessions from ccvault, sends them through a local LLM with the capture protocol, and pipes extracted nodes into `kt capture`.
+**kt-harvest** (new, this project): Orchestration script that bridges ccvault and kt. Reads unprocessed sessions from ccvault, runs them through the three-agent pipeline, and pipes verified nodes into `kt capture`.
 
-**Ollama** (existing infrastructure): Runs on Mac Mini. Already serves `nomic-embed-text` for kt embeddings. Will additionally run an instruction-following model for extraction.
+**Ollama** (existing infrastructure): Runs on Mac Mini. Already serves `nomic-embed-text` for kt embeddings. Will additionally run an instruction-following model shared across all three agents (same model, different prompts).
 
 **kt** (existing): Receives nodes via `kt capture`. Handles dedup detection, auto-linking, namespace routing, and eventual compaction via `/kompact`.
 
-## The Capture Protocol
+## Agent Definitions
 
-A markdown file that serves as the system prompt for every extraction run. Single source of truth for "what's worth keeping."
+Three separate prompt files, each giving one agent clear, focused instructions. Each agent has its own definition that can be evaluated and evolved independently.
 
-### Golden Principles
+### Agent 1: Scanner (`protocols/scanner.md`)
 
+**Job:** Read the transcript. Flag which turns contain potential knowledge. Nothing else.
+
+**Prompt contains:**
+- The 5 golden principles (what counts as knowledge)
+- Clear YES/NO output format per turn
+- Examples of turns that ARE knowledge vs. turns that are NOT
+
+**Golden Principles** (the scanner's decision rules):
 1. **Capture decisions, not actions.** "We chose X because Y" is knowledge. "We ran the build" is not.
 2. **Capture rationale, not just outcomes.** The "why" compounds. The "what" is in git.
 3. **Capture contradictions.** When reality contradicted an assumption — high-value.
 4. **Capture framework refinements.** When a model/approach got sharpened through use.
 5. **Skip mechanical execution.** Debugging loops, CSS fixes, "run the tests" — process, not knowledge.
 
-**Meta-principle:** When in doubt, don't capture. `/kompact` handles cleanup, but noise is harder to clean than gaps.
+**Meta-principle:** When in doubt, flag NO. The verifier catches false positives, but flooding the extractor with noise degrades everything downstream.
 
-### Node Type Taxonomy
+**Expected output:** JSON array of turn numbers/indices that contain potential knowledge, or `[]` for sessions with nothing.
+
+### Agent 2: Extractor (`protocols/extractor.md`)
+
+**Job:** Take flagged turns only. Produce structured knowledge nodes. Focus on making each node self-contained.
+
+**Prompt contains:**
+- Node type taxonomy with trigger conditions
+- 2-3 real examples per type (drawn from existing kt nodes)
+- Expected JSON output format
+- Explicit instruction: nodes must be readable without the session transcript
+
+**Node Type Taxonomy:**
 
 | Type | Trigger | Example |
 |------|---------|---------|
@@ -62,11 +101,7 @@ A markdown file that serves as the system prompt for every extraction run. Singl
 | Context | Client preferences, project constraints, domain knowledge | "Mac Mini Ollama models must be stored on /Volumes/Storage" |
 | Refinement | An existing framework/approach was improved | "Kompact staleness threshold adjusted from 60 to 30 days for active projects" |
 
-The protocol file will include 2-3 real examples per type, drawn from existing kt nodes.
-
-### Expected Output Format
-
-The LLM returns structured JSON:
+**Expected output:** JSON array of nodes:
 
 ```json
 [
@@ -80,7 +115,38 @@ The LLM returns structured JSON:
 ]
 ```
 
-Or an empty array `[]` for sessions with nothing worth capturing.
+### Agent 3: Verifier (`protocols/verifier.md`)
+
+**Job:** Quality gate. Review each candidate node before it enters kt. Pass or reject.
+
+**Prompt contains:**
+- Verification checklist (self-contained? genuinely worth keeping? not a duplicate?)
+- Access to existing kt node titles/summaries for dedup checking
+- Clear PASS/REJECT output per node with brief reason
+
+**Verification checks:**
+1. **Self-contained?** Can you understand this node without reading the session transcript?
+2. **Worth keeping?** Is this genuinely knowledge that compounds, or just an interesting fact from one session?
+3. **Not duplicate?** Does this substantially overlap with existing kt knowledge? (existing node titles provided as context)
+4. **Well-formed?** Does the title accurately describe the content? Are tags relevant?
+
+**Expected output:** JSON array of verdicts:
+
+```json
+[
+  { "index": 0, "verdict": "PASS" },
+  { "index": 1, "verdict": "REJECT", "reason": "Duplicates existing node about Ollama storage paths" }
+]
+```
+
+### Protocol Evolution
+
+After model evaluation (and periodically during operation), agent definitions are updated based on failure patterns:
+- Scanner flagging too many mechanical turns → tighten principles, add negative examples
+- Extractor producing nodes that aren't self-contained → add more examples of good vs. bad nodes
+- Verifier letting through duplicates → expand the existing-knowledge context it receives
+
+The three-agent architecture makes this evolution targeted: you fix the agent that's failing, not a monolithic prompt where changes have unpredictable side effects.
 
 ## Pipeline Details
 
@@ -91,12 +157,16 @@ Or an empty array `[]` for sessions with nothing worth capturing.
 3. Filter against processed sessions list (stored in `~/.kt-harvest/state.json`)
 4. For each unprocessed session:
    a. Export transcript: `ccvault export <session-id>`
-   b. Pre-process: truncate tool output blocks, keep human/assistant dialogue (decisions live in the conversation, not in `cat` output)
-   c. Send to Ollama with capture protocol as system prompt
-   d. Parse JSON response
-   e. For each extracted node: `kt capture "<content>" --namespace <ns> --title "<title>" --tags "<tags>"`
-   f. Mark session as processed in state file
-5. Log summary
+   b. Pre-process: truncate tool output blocks, keep human/assistant dialogue
+   c. **Agent 1 (Scanner):** Send preprocessed transcript to Ollama with `scanner.md`. Get back list of flagged turn indices.
+   d. If no turns flagged → mark session processed with 0 nodes, continue.
+   e. Extract flagged turns from transcript into a focused document.
+   f. **Agent 2 (Extractor):** Send flagged turns to Ollama with `extractor.md`. Get back candidate nodes as JSON.
+   g. Fetch existing kt node titles for the relevant namespace: `kt list -n <ns> --format json`
+   h. **Agent 3 (Verifier):** Send candidate nodes + existing kt titles to Ollama with `verifier.md`. Get back PASS/REJECT verdicts.
+   i. For each PASS node: `kt capture "<content>" --namespace <ns> --title "<title>" --tags "<tags>"`
+   j. Mark session as processed in state file (record: scanned turns, extracted candidates, verified nodes)
+5. Log summary per session and aggregate
 
 ### State Tracking
 
@@ -129,7 +199,7 @@ Sessions can be long (hundreds of turns). To fit within model context and focus 
 - Strip tool output blocks (file contents, command output, search results)
 - Keep human messages and assistant reasoning/responses
 - Keep tool call names (shows what was done) but not their full output
-- If still too long, keep first 30% and last 30% of turns (decisions cluster at the start and end of work sessions)
+- If still too long, keep first 50% and last 30% of turns, cutting from the middle. Front-weighted because: (a) session beginnings contain goal framing and key design decisions, (b) local models have better recall on tokens seen earlier in context (per Erik Garrison's observation that "the first ~N tokens have decent recall and cross referencing but it gets much worse as you go on"), (c) session middles are where debugging loops and mechanical execution cluster
 
 ## Model Evaluation
 
@@ -202,4 +272,5 @@ This uses the Claude Max plan allocation (zero marginal API cost). Same protocol
 | Long sessions exceed context window | Pre-processing strips tool output; truncation strategy |
 | Ollama down or busy | Session stays unprocessed, picked up next run |
 | Duplicate nodes from reprocessing | kt's built-in dedup detection |
-| Protocol drift (rules don't match reality over time) | Protocol is a versioned markdown file; periodic review like any other protocol |
+| Protocol drift (rules don't match reality over time) | Protocol is a versioned markdown file; periodic review like any other protocol. Three-agent architecture allows targeted fixes to the failing agent. |
+| Claude Code auto-compaction destroys mid-session context | Raw JSONL in ~/.claude/projects/ is the complete record. ccvault indexes these files, not the compacted session. This is a core motivation for building kt-harvest. |

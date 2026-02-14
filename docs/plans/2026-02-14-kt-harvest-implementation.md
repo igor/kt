@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build an automated pipeline that extracts knowledge from Claude Code sessions using ccvault, a local Ollama model, and kt capture.
+**Goal:** Build an automated pipeline that extracts knowledge from Claude Code sessions using ccvault, a three-agent Ollama pipeline (scanner → extractor → verifier), and kt capture.
 
-**Architecture:** Standalone Node.js/TypeScript project at `~/GitHub/kt-harvest/`. Calls ccvault CLI for session indexing/export, Ollama JS client for LLM extraction, and kt CLI for node capture. State tracked in `~/.kt-harvest/state.json`. Capture protocol lives in `protocol.md` at project root.
+**Architecture:** Standalone Node.js/TypeScript project at `~/GitHub/kt-harvest/`. Calls ccvault CLI for session indexing/export, Ollama JS client for three-agent extraction pipeline, and kt CLI for node capture. State tracked in `~/.kt-harvest/state.json`. Three agent protocol files live in `protocols/` directory (scanner.md, extractor.md, verifier.md).
 
 **Tech Stack:** TypeScript, Node.js 20+, Ollama JS client (`ollama` npm package), vitest for tests. CLI via commander. No database — JSON state file.
 
@@ -458,8 +458,8 @@ export function preprocessTranscript(
     const matches = [...result.matchAll(turnPattern)];
 
     if (matches.length > options.maxTurns) {
-      const keepStart = Math.ceil(options.maxTurns * 0.4);
-      const keepEnd = Math.floor(options.maxTurns * 0.6);
+      const keepStart = Math.ceil(options.maxTurns * 0.5);
+      const keepEnd = Math.floor(options.maxTurns * 0.3);
 
       // Find the position after keepStart turns
       const startCutoff = matches[keepStart]?.index ?? result.length;
@@ -492,12 +492,14 @@ git commit -m "feat: add transcript pre-processing (strip tool output, truncatio
 
 ---
 
-### Task 4: Capture Protocol File
+### Task 4: Agent Protocol Files
 
 **Files:**
-- Create: `~/GitHub/kt-harvest/protocol.md`
+- Create: `~/GitHub/kt-harvest/protocols/scanner.md`
+- Create: `~/GitHub/kt-harvest/protocols/extractor.md`
+- Create: `~/GitHub/kt-harvest/protocols/verifier.md`
 
-This is the system prompt sent to the LLM for every extraction. It encodes the golden principles and node type taxonomy from the design doc.
+Three separate agent definitions, each with a focused prompt. Each agent has one job and clear instructions. This follows Erik Garrison's design principle: "the organizing agent has to say what context they need to pay attention to, so they get clear directions usually."
 
 **Step 1: Analyze existing kt nodes for real examples**
 
@@ -508,55 +510,146 @@ kt search "chose" -n default --format json | head -5
 kt list -n writing --format json | head -5
 ```
 
-Use the output to pull 2-3 real examples per node type.
+Use the output to pull 2-3 real examples per node type for the extractor.
 
-**Step 2: Write protocol.md**
-
-The protocol must include:
-- Role description ("You are a knowledge extraction agent...")
-- The 5 golden principles (from design doc)
-- Node type taxonomy with 2-3 real examples each (from kt data)
-- Expected JSON output format
-- Explicit instruction: return `[]` for sessions with nothing worth capturing
-- Explicit instruction: nodes must be self-contained (readable without session context)
-
-Template structure:
+**Step 2: Write protocols/scanner.md**
 
 ```markdown
-# Knowledge Extraction Protocol v1.0
+# Scanner Agent v1.0
 
-You are a knowledge extraction agent. Your job is to read a Claude Code session
-transcript and identify knowledge worth persisting.
+You are a knowledge scanner. Your ONLY job is to identify which parts of a
+Claude Code session transcript contain potential knowledge worth persisting.
 
-## Golden Principles
+You do NOT extract or format knowledge. You only flag turns.
 
-1. **Capture decisions, not actions.**
-   ...
+## What Counts as Knowledge
 
-[full content from design doc, plus examples pulled from real kt nodes]
+1. **Decisions with reasoning.** "We chose X because Y" — YES. "We ran the build" — NO.
+2. **Rationale and the "why".** The reasoning behind a choice compounds. The action itself is in git.
+3. **Contradictions.** When reality contradicted an assumption or a previous belief.
+4. **Framework refinements.** When a model, approach, or tool got sharpened through use.
+5. **Mechanical execution is NOT knowledge.** Debugging loops, CSS fixes, "run the tests again", file reads, tool outputs.
+
+## When in Doubt
+
+Flag NO. Missing a piece of knowledge is acceptable. Flooding downstream agents with noise is not.
+
+## Examples
+
+Turn: "Let's also add a status column to posts" → NO (action, no reasoning)
+Turn: "Adding a status enum gives us flexibility for draft/published/archived states without needing a separate table" → YES (decision with rationale)
+Turn: "Let me read the schema file" → NO (mechanical)
+Turn: "We assumed 16GB RAM but it's actually 24GB — that opens up larger models" → YES (contradiction)
 
 ## Output Format
 
-Return ONLY valid JSON. No markdown, no explanation, no preamble.
+Return ONLY valid JSON. No markdown, no explanation.
+
+Return an array of turn indices (0-based) that contain potential knowledge:
+
+[0, 5, 12, 23]
+
+Return an empty array [] if no turns contain knowledge.
+```
+
+**Step 3: Write protocols/extractor.md**
+
+```markdown
+# Extractor Agent v1.0
+
+You are a knowledge extractor. You receive a set of flagged turns from a
+Claude Code session — turns that have already been identified as containing
+potential knowledge.
+
+Your job is to produce structured knowledge nodes from these turns.
+
+## Node Types
+
+| Type | When to Use |
+|------|------------|
+| decision | A choice was made with stated reasoning |
+| contradiction | Something believed turned out wrong, or two findings conflict |
+| insight | A pattern, connection, or reframe emerged from the work |
+| context | Client preferences, project constraints, or domain knowledge learned |
+| refinement | An existing framework, tool, or approach was improved |
+
+## Examples
+
+[2-3 real examples per type, pulled from existing kt nodes in Step 1]
+
+## Rules
+
+- Each node MUST be self-contained: readable without the session transcript.
+- Focus on the "why" not the "what".
+- One node per distinct piece of knowledge (don't merge unrelated things).
+- Keep content concise: 1-3 sentences per node.
+
+## Output Format
+
+Return ONLY valid JSON. No markdown, no explanation.
 
 [
   {
-    "type": "decision|contradiction|insight|context|refinement",
+    "type": "decision",
     "title": "Short descriptive title (max 10 words)",
-    "content": "Self-contained description. Must be readable without the session transcript.",
-    "namespace": "detected-namespace-or-default",
+    "content": "Self-contained description of the knowledge.",
+    "namespace": "namespace-from-context",
     "tags": ["tag1", "tag2"]
   }
 ]
 
-Return an empty array [] if the session contains nothing worth capturing.
+Return an empty array [] if flagged turns don't actually contain extractable knowledge.
 ```
 
-**Step 3: Commit**
+**Step 4: Write protocols/verifier.md**
+
+```markdown
+# Verifier Agent v1.0
+
+You are a knowledge verifier — the quality gate before knowledge enters the
+knowledge base. You receive candidate nodes and must PASS or REJECT each one.
+
+You also receive a list of existing knowledge node titles to check for duplicates.
+
+## Verification Checks
+
+For each candidate node, check ALL of:
+
+1. **Self-contained?** Can you understand this node without reading the original session?
+   REJECT if it uses pronouns without referents ("we decided to do it this way")
+   or references context not in the node ("as discussed above").
+
+2. **Worth keeping?** Is this knowledge that compounds over time?
+   REJECT if it's session-specific ("fixed the bug in line 42")
+   or trivially obvious ("CSS uses selectors to style elements").
+
+3. **Not duplicate?** Does this substantially overlap with an existing node?
+   REJECT if the core insight is already captured (minor wording differences don't matter).
+
+4. **Well-formed?** Does the title accurately describe the content? Are tags relevant?
+   REJECT if title is vague ("Important decision") or content contradicts title.
+
+## When in Doubt
+
+REJECT. It's better to miss a piece of knowledge than to pollute the knowledge
+base with noise. Gaps can be filled later. Noise creates cleanup work.
+
+## Output Format
+
+Return ONLY valid JSON. No markdown, no explanation.
+
+[
+  { "index": 0, "verdict": "PASS" },
+  { "index": 1, "verdict": "REJECT", "reason": "Not self-contained — references 'the approach discussed earlier' without explaining it" },
+  { "index": 2, "verdict": "PASS" }
+]
+```
+
+**Step 5: Commit**
 
 ```bash
-git add protocol.md
-git commit -m "feat: add capture protocol (golden principles + taxonomy)"
+git add protocols/
+git commit -m "feat: add three-agent protocol files (scanner, extractor, verifier)"
 ```
 
 ---
@@ -678,79 +771,24 @@ git commit -m "feat: add ccvault CLI integration module"
 
 ---
 
-### Task 6: Ollama Extraction Module
+### Task 6: Three-Agent Pipeline Modules
 
 **Files:**
-- Create: `src/extract.ts`
-- Create: `tests/extract.test.ts`
+- Create: `src/agents/ollama.ts` (shared Ollama client)
+- Create: `src/agents/scanner.ts`
+- Create: `src/agents/extractor.ts`
+- Create: `src/agents/verifier.ts`
+- Create: `src/agents/types.ts`
+- Create: `tests/agents/scanner.test.ts`
+- Create: `tests/agents/extractor.test.ts`
+- Create: `tests/agents/verifier.test.ts`
 
-**Step 1: Write the failing test**
+Each agent has: a focused prompt, a single Ollama call, and robust response parsing.
 
-```typescript
-// tests/extract.test.ts
-import { describe, it, expect } from 'vitest';
-import { parseExtractionResponse, ExtractedNode } from '../src/extract.js';
-
-describe('parseExtractionResponse', () => {
-  it('parses valid JSON array of nodes', () => {
-    const response = JSON.stringify([
-      {
-        type: 'decision',
-        title: 'Chose ccvault over forking',
-        content: 'Decided to use ccvault as external dependency rather than forking because upstream is actively maintained.',
-        namespace: 'kt',
-        tags: ['architecture', 'dependency'],
-      },
-    ]);
-    const nodes = parseExtractionResponse(response);
-    expect(nodes).toHaveLength(1);
-    expect(nodes[0].type).toBe('decision');
-    expect(nodes[0].title).toBe('Chose ccvault over forking');
-  });
-
-  it('returns empty array for empty JSON array', () => {
-    expect(parseExtractionResponse('[]')).toEqual([]);
-  });
-
-  it('handles LLM wrapping response in markdown code block', () => {
-    const response = '```json\n[{"type":"insight","title":"Test","content":"Test content","namespace":"default","tags":[]}]\n```';
-    const nodes = parseExtractionResponse(response);
-    expect(nodes).toHaveLength(1);
-  });
-
-  it('handles LLM adding preamble text before JSON', () => {
-    const response = 'Here are the extracted nodes:\n\n[{"type":"insight","title":"Test","content":"Test content","namespace":"default","tags":[]}]';
-    const nodes = parseExtractionResponse(response);
-    expect(nodes).toHaveLength(1);
-  });
-
-  it('returns empty array for unparseable garbage', () => {
-    expect(parseExtractionResponse('I could not find anything')).toEqual([]);
-  });
-
-  it('filters out nodes with missing required fields', () => {
-    const response = JSON.stringify([
-      { type: 'decision', title: 'Good', content: 'Valid node', namespace: 'default', tags: [] },
-      { type: 'decision', title: '', content: '', namespace: 'default', tags: [] },
-    ]);
-    const nodes = parseExtractionResponse(response);
-    expect(nodes).toHaveLength(1);
-  });
-});
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `cd ~/GitHub/kt-harvest && npx vitest run tests/extract.test.ts`
-Expected: FAIL
-
-**Step 3: Write implementation**
+**Step 1: Write shared types and Ollama client**
 
 ```typescript
-// src/extract.ts
-import { Ollama } from 'ollama';
-import { readFileSync } from 'fs';
-
+// src/agents/types.ts
 export interface ExtractedNode {
   type: 'decision' | 'contradiction' | 'insight' | 'context' | 'refinement';
   title: string;
@@ -759,13 +797,56 @@ export interface ExtractedNode {
   tags: string[];
 }
 
-const VALID_TYPES = ['decision', 'contradiction', 'insight', 'context', 'refinement'];
+export interface VerifierVerdict {
+  index: number;
+  verdict: 'PASS' | 'REJECT';
+  reason?: string;
+}
+
+export const VALID_TYPES = ['decision', 'contradiction', 'insight', 'context', 'refinement'];
+```
+
+```typescript
+// src/agents/ollama.ts
+import { Ollama } from 'ollama';
+import { readFileSync } from 'fs';
+
+export interface AgentCallOptions {
+  protocolPath: string;
+  userMessage: string;
+  model: string;
+  ollamaHost?: string;
+  numCtx?: number;
+}
 
 /**
- * Parse LLM response into ExtractedNode array.
- * Handles: clean JSON, markdown-wrapped JSON, preamble text, garbage.
+ * Shared Ollama call for all agents.
+ * Each agent gets its own protocol file as system prompt.
  */
-export function parseExtractionResponse(response: string): ExtractedNode[] {
+export async function callAgent(options: AgentCallOptions): Promise<string> {
+  const protocol = readFileSync(options.protocolPath, 'utf-8');
+  const ollama = new Ollama({ host: options.ollamaHost });
+
+  const response = await ollama.chat({
+    model: options.model,
+    messages: [
+      { role: 'system', content: protocol },
+      { role: 'user', content: options.userMessage },
+    ],
+    options: {
+      temperature: 0.1,
+      num_ctx: options.numCtx ?? 32768,
+    },
+  });
+
+  return response.message.content;
+}
+
+/**
+ * Robustly extract a JSON array from LLM output.
+ * Handles: clean JSON, markdown-wrapped, preamble text, garbage.
+ */
+export function extractJsonArray(response: string): any[] {
   let jsonStr = response.trim();
 
   // Strip markdown code fences
@@ -774,67 +855,262 @@ export function parseExtractionResponse(response: string): ExtractedNode[] {
     jsonStr = codeBlockMatch[1].trim();
   }
 
-  // Try to find JSON array in the response
+  // Try to find JSON array
   const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
   if (!arrayMatch) return [];
 
   try {
     const parsed = JSON.parse(arrayMatch[0]);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter((node: any) =>
-      node &&
-      typeof node.title === 'string' && node.title.trim() !== '' &&
-      typeof node.content === 'string' && node.content.trim() !== '' &&
-      typeof node.namespace === 'string' &&
-      VALID_TYPES.includes(node.type) &&
-      Array.isArray(node.tags)
-    );
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
+```
+
+**Step 2: Write scanner agent tests**
+
+```typescript
+// tests/agents/scanner.test.ts
+import { describe, it, expect } from 'vitest';
+import { parseScannerResponse } from '../../src/agents/scanner.js';
+
+describe('parseScannerResponse', () => {
+  it('parses array of turn indices', () => {
+    expect(parseScannerResponse('[0, 5, 12]')).toEqual([0, 5, 12]);
+  });
+
+  it('returns empty array for empty response', () => {
+    expect(parseScannerResponse('[]')).toEqual([]);
+  });
+
+  it('handles markdown-wrapped response', () => {
+    expect(parseScannerResponse('```json\n[1, 3, 7]\n```')).toEqual([1, 3, 7]);
+  });
+
+  it('filters out non-integer values', () => {
+    expect(parseScannerResponse('[0, "hello", 5, null, 12]')).toEqual([0, 5, 12]);
+  });
+
+  it('returns empty for garbage', () => {
+    expect(parseScannerResponse('No knowledge found in this session.')).toEqual([]);
+  });
+});
+```
+
+**Step 3: Write scanner agent**
+
+```typescript
+// src/agents/scanner.ts
+import { callAgent, extractJsonArray } from './ollama.js';
 
 /**
- * Send a preprocessed transcript to Ollama with the capture protocol.
- * Returns extracted nodes.
+ * Parse scanner response into array of turn indices.
  */
-export async function extractFromTranscript(
+export function parseScannerResponse(response: string): number[] {
+  const parsed = extractJsonArray(response);
+  return parsed.filter((item): item is number => typeof item === 'number' && Number.isInteger(item));
+}
+
+/**
+ * Agent 1: Scan transcript, flag turns containing potential knowledge.
+ */
+export async function scan(
   transcript: string,
   protocolPath: string,
   model: string,
   ollamaHost?: string,
-): Promise<ExtractedNode[]> {
-  const protocol = readFileSync(protocolPath, 'utf-8');
-
-  const ollama = new Ollama({ host: ollamaHost });
-
-  const response = await ollama.chat({
+): Promise<number[]> {
+  const response = await callAgent({
+    protocolPath,
     model,
-    messages: [
-      { role: 'system', content: protocol },
-      { role: 'user', content: `Here is a Claude Code session transcript. Extract knowledge nodes according to the protocol.\n\n${transcript}` },
-    ],
-    options: {
-      temperature: 0.1, // low temperature for structured extraction
-      num_ctx: 32768,   // large context for long transcripts
-    },
+    ollamaHost,
+    userMessage: `Here is a Claude Code session transcript. For each turn, identify whether it contains potential knowledge worth persisting. Return the indices of knowledge-bearing turns.\n\n${transcript}`,
   });
-
-  return parseExtractionResponse(response.message.content);
+  return parseScannerResponse(response);
 }
 ```
 
-**Step 4: Run test to verify it passes**
+**Step 4: Write extractor agent tests**
 
-Run: `cd ~/GitHub/kt-harvest && npx vitest run tests/extract.test.ts`
-Expected: All 6 tests PASS
+```typescript
+// tests/agents/extractor.test.ts
+import { describe, it, expect } from 'vitest';
+import { parseExtractorResponse } from '../../src/agents/extractor.js';
 
-**Step 5: Commit**
+describe('parseExtractorResponse', () => {
+  it('parses valid JSON array of nodes', () => {
+    const response = JSON.stringify([{
+      type: 'decision',
+      title: 'Chose ccvault over forking',
+      content: 'Decided to use ccvault as external dependency rather than forking because upstream is actively maintained.',
+      namespace: 'kt',
+      tags: ['architecture', 'dependency'],
+    }]);
+    const nodes = parseExtractorResponse(response);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].type).toBe('decision');
+  });
+
+  it('returns empty array for empty JSON', () => {
+    expect(parseExtractorResponse('[]')).toEqual([]);
+  });
+
+  it('handles markdown-wrapped response', () => {
+    const response = '```json\n[{"type":"insight","title":"Test","content":"Test content","namespace":"default","tags":[]}]\n```';
+    expect(parseExtractorResponse(response)).toHaveLength(1);
+  });
+
+  it('filters out nodes with missing required fields', () => {
+    const response = JSON.stringify([
+      { type: 'decision', title: 'Good', content: 'Valid', namespace: 'default', tags: [] },
+      { type: 'decision', title: '', content: '', namespace: 'default', tags: [] },
+    ]);
+    expect(parseExtractorResponse(response)).toHaveLength(1);
+  });
+
+  it('returns empty for garbage', () => {
+    expect(parseExtractorResponse('I could not find anything')).toEqual([]);
+  });
+});
+```
+
+**Step 5: Write extractor agent**
+
+```typescript
+// src/agents/extractor.ts
+import { callAgent, extractJsonArray } from './ollama.js';
+import { ExtractedNode, VALID_TYPES } from './types.js';
+
+/**
+ * Parse extractor response into validated nodes.
+ */
+export function parseExtractorResponse(response: string): ExtractedNode[] {
+  const parsed = extractJsonArray(response);
+  return parsed.filter((node: any) =>
+    node &&
+    typeof node.title === 'string' && node.title.trim() !== '' &&
+    typeof node.content === 'string' && node.content.trim() !== '' &&
+    typeof node.namespace === 'string' &&
+    VALID_TYPES.includes(node.type) &&
+    Array.isArray(node.tags)
+  );
+}
+
+/**
+ * Agent 2: Extract structured knowledge nodes from flagged turns.
+ */
+export async function extract(
+  flaggedTurns: string,
+  namespace: string,
+  protocolPath: string,
+  model: string,
+  ollamaHost?: string,
+): Promise<ExtractedNode[]> {
+  const response = await callAgent({
+    protocolPath,
+    model,
+    ollamaHost,
+    numCtx: 16384, // Smaller context — flagged turns only, not full transcript
+    userMessage: `Here are turns from a Claude Code session that were flagged as containing potential knowledge. The project namespace is "${namespace}".\n\nExtract structured knowledge nodes from these turns.\n\n${flaggedTurns}`,
+  });
+  return parseExtractorResponse(response);
+}
+```
+
+**Step 6: Write verifier agent tests**
+
+```typescript
+// tests/agents/verifier.test.ts
+import { describe, it, expect } from 'vitest';
+import { parseVerifierResponse } from '../../src/agents/verifier.js';
+
+describe('parseVerifierResponse', () => {
+  it('parses PASS/REJECT verdicts', () => {
+    const response = JSON.stringify([
+      { index: 0, verdict: 'PASS' },
+      { index: 1, verdict: 'REJECT', reason: 'Not self-contained' },
+    ]);
+    const verdicts = parseVerifierResponse(response);
+    expect(verdicts).toHaveLength(2);
+    expect(verdicts[0].verdict).toBe('PASS');
+    expect(verdicts[1].verdict).toBe('REJECT');
+    expect(verdicts[1].reason).toBe('Not self-contained');
+  });
+
+  it('returns empty for garbage', () => {
+    expect(parseVerifierResponse('looks good to me')).toEqual([]);
+  });
+
+  it('filters out invalid verdicts', () => {
+    const response = JSON.stringify([
+      { index: 0, verdict: 'PASS' },
+      { index: 1, verdict: 'MAYBE' },
+    ]);
+    expect(parseVerifierResponse(response)).toHaveLength(1);
+  });
+});
+```
+
+**Step 7: Write verifier agent**
+
+```typescript
+// src/agents/verifier.ts
+import { callAgent, extractJsonArray } from './ollama.js';
+import { ExtractedNode, VerifierVerdict } from './types.js';
+
+/**
+ * Parse verifier response into verdicts.
+ */
+export function parseVerifierResponse(response: string): VerifierVerdict[] {
+  const parsed = extractJsonArray(response);
+  return parsed.filter((v: any) =>
+    v &&
+    typeof v.index === 'number' &&
+    (v.verdict === 'PASS' || v.verdict === 'REJECT')
+  );
+}
+
+/**
+ * Agent 3: Verify candidate nodes before they enter kt.
+ * Quality gate — checks self-containment, value, duplicates, form.
+ */
+export async function verify(
+  candidates: ExtractedNode[],
+  existingNodeTitles: string[],
+  protocolPath: string,
+  model: string,
+  ollamaHost?: string,
+): Promise<VerifierVerdict[]> {
+  const candidatesSummary = candidates.map((n, i) =>
+    `[${i}] (${n.type}) "${n.title}": ${n.content}`
+  ).join('\n\n');
+
+  const existingContext = existingNodeTitles.length > 0
+    ? `\n\nExisting knowledge node titles in this namespace:\n${existingNodeTitles.map(t => `- ${t}`).join('\n')}`
+    : '\n\nNo existing knowledge nodes in this namespace.';
+
+  const response = await callAgent({
+    protocolPath,
+    model,
+    ollamaHost,
+    numCtx: 8192, // Small context — just candidates + existing titles
+    userMessage: `Review these candidate knowledge nodes. For each, decide PASS or REJECT.\n\n${candidatesSummary}${existingContext}`,
+  });
+  return parseVerifierResponse(response);
+}
+```
+
+**Step 8: Run all agent tests**
+
+Run: `cd ~/GitHub/kt-harvest && npx vitest run tests/agents/`
+Expected: All tests PASS (scanner: 5, extractor: 5, verifier: 3)
+
+**Step 9: Commit**
 
 ```bash
-git add src/extract.ts tests/extract.test.ts
-git commit -m "feat: add Ollama extraction module with robust JSON parsing"
+git add src/agents/ tests/agents/
+git commit -m "feat: add three-agent pipeline (scanner, extractor, verifier)"
 ```
 
 ---
@@ -851,7 +1127,7 @@ git commit -m "feat: add Ollama extraction module with robust JSON parsing"
 // tests/kt.test.ts
 import { describe, it, expect } from 'vitest';
 import { buildCaptureCommand } from '../src/kt.js';
-import type { ExtractedNode } from '../src/extract.js';
+import type { ExtractedNode } from '../src/agents/types.js';
 
 describe('buildCaptureCommand', () => {
   it('builds a valid kt capture command', () => {
@@ -905,7 +1181,7 @@ Expected: FAIL
 ```typescript
 // src/kt.ts
 import { execSync } from 'child_process';
-import type { ExtractedNode } from './extract.js';
+import type { ExtractedNode } from './agents/types.js';
 
 function escapeForShell(str: string): string {
   return str.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
@@ -933,6 +1209,23 @@ export function captureNode(node: ExtractedNode): { success: boolean; output: st
     return { success: false, output: err.message };
   }
 }
+
+/**
+ * Get existing kt node titles for a namespace.
+ * Used by the verifier agent for dedup checking.
+ */
+export function getExistingNodeTitles(namespace: string): string[] {
+  try {
+    const output = execSync(`kt list -n ${namespace} --format json`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    });
+    const nodes = JSON.parse(output);
+    return nodes.map((n: any) => n.title).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 ```
 
 **Step 4: Run test to verify it passes**
@@ -955,31 +1248,38 @@ git commit -m "feat: add kt capture command builder"
 - Modify: `src/index.ts`
 - Create: `src/harvest.ts`
 
-**Step 1: Write the harvest orchestrator**
+**Step 1: Write the harvest orchestrator with three-agent pipeline**
 
 ```typescript
 // src/harvest.ts
 import { syncSessions, listSessions, exportSession } from './ccvault.js';
-import { preprocessTranscript } from './preprocess.js';
-import { extractFromTranscript, ExtractedNode } from './extract.js';
-import { captureNode } from './kt.js';
+import { preprocessTranscript, splitIntoTurns, extractTurnsByIndices } from './preprocess.js';
+import { scan } from './agents/scanner.js';
+import { extract } from './agents/extractor.js';
+import { verify } from './agents/verifier.js';
+import { ExtractedNode } from './agents/types.js';
+import { captureNode, getExistingNodeTitles } from './kt.js';
 import { State } from './state.js';
-import { resolve } from 'path';
+import { resolve, join } from 'path';
 import { homedir } from 'os';
 
 export interface HarvestOptions {
   model: string;
-  protocolPath: string;
+  protocolsDir: string; // directory containing scanner.md, extractor.md, verifier.md
   stateDir: string;
   ollamaHost?: string;
   reprocess?: boolean;
   dryRun?: boolean;
   maxTurns?: number;
-  limit?: number; // max sessions to process per run
+  limit?: number;
 }
 
 export interface SessionResult {
   sessionId: string;
+  turnsScanned: number;
+  turnsFlagged: number;
+  candidatesExtracted: number;
+  nodesVerified: number;
   nodesCaptured: number;
   nodes: ExtractedNode[];
   error?: string;
@@ -988,6 +1288,10 @@ export interface SessionResult {
 export async function harvest(options: HarvestOptions): Promise<SessionResult[]> {
   const state = new State(options.stateDir);
   state.load();
+
+  const scannerProtocol = join(options.protocolsDir, 'scanner.md');
+  const extractorProtocol = join(options.protocolsDir, 'extractor.md');
+  const verifierProtocol = join(options.protocolsDir, 'verifier.md');
 
   // Step 1: Sync ccvault
   console.log('Syncing ccvault...');
@@ -1010,9 +1314,19 @@ export async function harvest(options: HarvestOptions): Promise<SessionResult[]>
 
   const results: SessionResult[] = [];
 
-  // Step 4: Process each session
+  // Step 4: Process each session through three-agent pipeline
   for (const session of toProcess) {
     console.log(`\nProcessing session ${session.id.slice(0, 8)}... (${session.turn_count} turns)`);
+
+    const result: SessionResult = {
+      sessionId: session.id,
+      turnsScanned: 0,
+      turnsFlagged: 0,
+      candidatesExtracted: 0,
+      nodesVerified: 0,
+      nodesCaptured: 0,
+      nodes: [],
+    };
 
     try {
       // Export and preprocess
@@ -1022,41 +1336,86 @@ export async function harvest(options: HarvestOptions): Promise<SessionResult[]>
       if (!processed.trim()) {
         console.log('  → Empty transcript, skipping');
         state.markProcessed(session.id, 0, options.model);
-        results.push({ sessionId: session.id, nodesCaptured: 0, nodes: [] });
+        results.push(result);
         continue;
       }
 
-      // Extract
-      const nodes = await extractFromTranscript(
-        processed,
-        options.protocolPath,
-        options.model,
-        options.ollamaHost,
-      );
+      const turns = splitIntoTurns(processed);
+      result.turnsScanned = turns.length;
 
-      console.log(`  → Extracted ${nodes.length} nodes`);
+      // AGENT 1: Scanner
+      console.log(`  [scanner] Scanning ${turns.length} turns...`);
+      const flaggedIndices = await scan(processed, scannerProtocol, options.model, options.ollamaHost);
+      result.turnsFlagged = flaggedIndices.length;
+      console.log(`  [scanner] Flagged ${flaggedIndices.length} turns`);
 
+      if (flaggedIndices.length === 0) {
+        console.log('  → Nothing flagged, skipping');
+        state.markProcessed(session.id, 0, options.model);
+        results.push(result);
+        continue;
+      }
+
+      // Extract flagged turns into focused document
+      const flaggedContent = extractTurnsByIndices(processed, flaggedIndices);
+      const namespace = 'default'; // TODO: detect from project path via kt mappings
+
+      // AGENT 2: Extractor
+      console.log(`  [extractor] Extracting from ${flaggedIndices.length} flagged turns...`);
+      const candidates = await extract(flaggedContent, namespace, extractorProtocol, options.model, options.ollamaHost);
+      result.candidatesExtracted = candidates.length;
+      console.log(`  [extractor] Produced ${candidates.length} candidate nodes`);
+
+      if (candidates.length === 0) {
+        console.log('  → No candidates extracted');
+        state.markProcessed(session.id, 0, options.model);
+        results.push(result);
+        continue;
+      }
+
+      // Get existing kt nodes for dedup context
+      const existingTitles = getExistingNodeTitles(namespace);
+
+      // AGENT 3: Verifier
+      console.log(`  [verifier] Verifying ${candidates.length} candidates against ${existingTitles.length} existing nodes...`);
+      const verdicts = await verify(candidates, existingTitles, verifierProtocol, options.model, options.ollamaHost);
+
+      const passedNodes = candidates.filter((_, i) => {
+        const verdict = verdicts.find(v => v.index === i);
+        if (verdict?.verdict === 'REJECT') {
+          console.log(`  [verifier] REJECT: ${candidates[i].title} — ${verdict.reason || 'no reason given'}`);
+        }
+        return verdict?.verdict === 'PASS';
+      });
+
+      result.nodesVerified = passedNodes.length;
+      console.log(`  [verifier] ${passedNodes.length} PASS, ${candidates.length - passedNodes.length} REJECT`);
+
+      // Capture verified nodes
       if (!options.dryRun) {
-        // Capture each node
-        for (const node of nodes) {
-          const result = captureNode(node);
-          if (result.success) {
+        for (const node of passedNodes) {
+          const captureResult = captureNode(node);
+          if (captureResult.success) {
             console.log(`  ✓ Captured: ${node.title} (${node.type})`);
+            result.nodesCaptured++;
           } else {
-            console.log(`  ✗ Failed: ${node.title} — ${result.output}`);
+            console.log(`  ✗ Failed: ${node.title} — ${captureResult.output}`);
           }
         }
       } else {
-        for (const node of nodes) {
+        for (const node of passedNodes) {
           console.log(`  [dry-run] Would capture: ${node.title} (${node.type})`);
         }
+        result.nodesCaptured = passedNodes.length;
       }
 
-      state.markProcessed(session.id, nodes.length, options.model);
-      results.push({ sessionId: session.id, nodesCaptured: nodes.length, nodes });
+      result.nodes = passedNodes;
+      state.markProcessed(session.id, passedNodes.length, options.model);
+      results.push(result);
     } catch (err: any) {
       console.log(`  ✗ Error: ${err.message}`);
-      results.push({ sessionId: session.id, nodesCaptured: 0, nodes: [], error: err.message });
+      result.error = err.message;
+      results.push(result);
     }
   }
 
@@ -1067,11 +1426,18 @@ export async function harvest(options: HarvestOptions): Promise<SessionResult[]>
 
   // Summary
   const totalCaptured = results.reduce((sum, r) => sum + r.nodesCaptured, 0);
-  console.log(`\nDone. Processed ${results.length} sessions, captured ${totalCaptured} nodes.`);
+  const totalFlagged = results.reduce((sum, r) => sum + r.turnsFlagged, 0);
+  const totalCandidates = results.reduce((sum, r) => sum + r.candidatesExtracted, 0);
+  console.log(`\nDone. Processed ${results.length} sessions:`);
+  console.log(`  Turns flagged: ${totalFlagged}`);
+  console.log(`  Candidates extracted: ${totalCandidates}`);
+  console.log(`  Nodes captured: ${totalCaptured}`);
 
   return results;
 }
 ```
+
+Note: `splitIntoTurns` and `extractTurnsByIndices` are new helper functions to add to `preprocess.ts` — they split the transcript into indexable turns and extract specific turns by index for the extractor agent.
 
 **Step 2: Write the CLI entry point**
 
@@ -1099,7 +1465,7 @@ program
   .command('run')
   .description('Process new sessions and extract knowledge')
   .option('-m, --model <model>', 'Ollama model to use', 'qwen3:30b-a3b-q4_K_M')
-  .option('--protocol <path>', 'Path to capture protocol', join(__dirname, '..', 'protocol.md'))
+  .option('--protocols-dir <path>', 'Directory containing agent protocols', join(__dirname, '..', 'protocols'))
   .option('--state-dir <path>', 'State directory', join(homedir(), '.kt-harvest'))
   .option('--ollama-host <url>', 'Ollama host URL')
   .option('--reprocess', 'Reprocess already-processed sessions', false)
@@ -1109,7 +1475,7 @@ program
   .action(async (opts) => {
     await harvest({
       model: opts.model,
-      protocolPath: resolve(opts.protocol),
+      protocolsDir: resolve(opts.protocolsDir),
       stateDir: resolve(opts.stateDir),
       ollamaHost: opts.ollamaHost,
       reprocess: opts.reprocess,
@@ -1156,88 +1522,143 @@ git commit -m "feat: add main orchestrator and CLI"
 **Files:**
 - Create: `src/evaluate.ts`
 
-This adds an `evaluate` command that runs the extraction against a set of test sessions and outputs a comparison report for human (Claude) review.
+This adds an `evaluate` command that runs the full three-agent pipeline per model and outputs a detailed comparison report. The report shows per-agent metrics so you can see which agent is the bottleneck for each model.
 
 **Step 1: Write the evaluation command**
 
 ```typescript
 // src/evaluate.ts
-import { exportSession, listSessions } from './ccvault.js';
-import { preprocessTranscript } from './preprocess.js';
-import { extractFromTranscript, ExtractedNode } from './extract.js';
-import { resolve } from 'path';
+import { exportSession } from './ccvault.js';
+import { preprocessTranscript, splitIntoTurns, extractTurnsByIndices } from './preprocess.js';
+import { scan } from './agents/scanner.js';
+import { extract } from './agents/extractor.js';
+import { verify } from './agents/verifier.js';
+import { ExtractedNode } from './agents/types.js';
+import { getExistingNodeTitles } from './kt.js';
+import { resolve, join } from 'path';
 import { writeFileSync, mkdirSync } from 'fs';
 
 export interface EvalOptions {
   models: string[];
   sessionIds: string[];
-  protocolPath: string;
+  protocolsDir: string;
   ollamaHost?: string;
   outputDir: string;
   maxTurns?: number;
 }
 
+interface AgentMetrics {
+  turnsFlagged: number;
+  candidatesExtracted: number;
+  nodesVerified: number;
+  rejectReasons: string[];
+  nodes: ExtractedNode[];
+}
+
 export async function evaluate(options: EvalOptions): Promise<void> {
   mkdirSync(options.outputDir, { recursive: true });
 
-  const results: Record<string, Record<string, ExtractedNode[]>> = {};
+  const scannerProtocol = join(options.protocolsDir, 'scanner.md');
+  const extractorProtocol = join(options.protocolsDir, 'extractor.md');
+  const verifierProtocol = join(options.protocolsDir, 'verifier.md');
+
+  const results: Record<string, Record<string, AgentMetrics>> = {};
 
   for (const sessionId of options.sessionIds) {
     console.log(`\nExporting session ${sessionId.slice(0, 8)}...`);
     const transcript = exportSession(sessionId);
     const processed = preprocessTranscript(transcript, { maxTurns: options.maxTurns });
+    const turns = splitIntoTurns(processed);
 
     results[sessionId] = {};
 
     for (const model of options.models) {
       console.log(`  Running ${model}...`);
+      const metrics: AgentMetrics = {
+        turnsFlagged: 0,
+        candidatesExtracted: 0,
+        nodesVerified: 0,
+        rejectReasons: [],
+        nodes: [],
+      };
+
       try {
-        const nodes = await extractFromTranscript(
-          processed,
-          options.protocolPath,
-          model,
-          options.ollamaHost,
-        );
-        results[sessionId][model] = nodes;
-        console.log(`  → ${nodes.length} nodes extracted`);
+        // Agent 1: Scanner
+        const flagged = await scan(processed, scannerProtocol, model, options.ollamaHost);
+        metrics.turnsFlagged = flagged.length;
+        console.log(`    [scanner] ${flagged.length}/${turns.length} turns flagged`);
+
+        if (flagged.length > 0) {
+          // Agent 2: Extractor
+          const flaggedContent = extractTurnsByIndices(processed, flagged);
+          const candidates = await extract(flaggedContent, 'default', extractorProtocol, model, options.ollamaHost);
+          metrics.candidatesExtracted = candidates.length;
+          console.log(`    [extractor] ${candidates.length} candidates`);
+
+          if (candidates.length > 0) {
+            // Agent 3: Verifier
+            const existingTitles = getExistingNodeTitles('default');
+            const verdicts = await verify(candidates, existingTitles, verifierProtocol, model, options.ollamaHost);
+            const passed = candidates.filter((_, i) => {
+              const v = verdicts.find(v => v.index === i);
+              if (v?.verdict === 'REJECT') metrics.rejectReasons.push(`${candidates[i].title}: ${v.reason || 'no reason'}`);
+              return v?.verdict === 'PASS';
+            });
+            metrics.nodesVerified = passed.length;
+            metrics.nodes = passed;
+            console.log(`    [verifier] ${passed.length} PASS, ${candidates.length - passed.length} REJECT`);
+          }
+        }
       } catch (err: any) {
-        console.log(`  ✗ Error: ${err.message}`);
-        results[sessionId][model] = [];
+        console.log(`    ✗ Error: ${err.message}`);
       }
+
+      results[sessionId][model] = metrics;
     }
   }
 
-  // Write report
+  // Write report with per-agent breakdown
   let report = '# kt-harvest Model Evaluation Report\n\n';
   report += `Date: ${new Date().toISOString()}\n`;
   report += `Models: ${options.models.join(', ')}\n`;
-  report += `Sessions: ${options.sessionIds.length}\n\n`;
+  report += `Sessions: ${options.sessionIds.length}\n`;
+  report += `Pipeline: Scanner → Extractor → Verifier (three-agent)\n\n`;
 
   for (const sessionId of options.sessionIds) {
     report += `## Session ${sessionId.slice(0, 8)}\n\n`;
 
     for (const model of options.models) {
-      const nodes = results[sessionId][model];
-      report += `### ${model} (${nodes.length} nodes)\n\n`;
+      const m = results[sessionId][model];
+      report += `### ${model}\n\n`;
+      report += `| Agent | Output |\n|---|---|\n`;
+      report += `| Scanner | ${m.turnsFlagged} turns flagged |\n`;
+      report += `| Extractor | ${m.candidatesExtracted} candidates |\n`;
+      report += `| Verifier | ${m.nodesVerified} PASS, ${m.candidatesExtracted - m.nodesVerified} REJECT |\n\n`;
 
-      if (nodes.length === 0) {
-        report += '_No nodes extracted._\n\n';
-      } else {
-        for (const node of nodes) {
+      if (m.nodes.length > 0) {
+        report += `**Verified nodes:**\n\n`;
+        for (const node of m.nodes) {
           report += `- **[${node.type}]** ${node.title}\n`;
           report += `  ${node.content}\n`;
           report += `  _tags: ${node.tags.join(', ')}_\n\n`;
         }
       }
+
+      if (m.rejectReasons.length > 0) {
+        report += `**Rejections:**\n\n`;
+        for (const r of m.rejectReasons) {
+          report += `- ${r}\n`;
+        }
+        report += '\n';
+      }
     }
-    report += '---\n\n';
+    report += '\n';
   }
 
   const reportPath = resolve(options.outputDir, 'evaluation-report.md');
   writeFileSync(reportPath, report);
   console.log(`\nReport saved to ${reportPath}`);
 
-  // Also save raw JSON for programmatic analysis
   const jsonPath = resolve(options.outputDir, 'evaluation-results.json');
   writeFileSync(jsonPath, JSON.stringify(results, null, 2));
   console.log(`Raw results saved to ${jsonPath}`);
@@ -1251,10 +1672,10 @@ Add to `src/index.ts` after the `status` command:
 ```typescript
 program
   .command('evaluate')
-  .description('Run model evaluation against test sessions')
+  .description('Run three-agent pipeline evaluation against test sessions')
   .requiredOption('--sessions <ids...>', 'Session IDs to evaluate')
   .option('--models <models...>', 'Models to compare', ['qwen3:30b-a3b-q4_K_M', 'gemma3:12b-q4_K_M', 'mistral-small3.1:24b-instruct-q4_K_M'])
-  .option('--protocol <path>', 'Path to capture protocol', join(__dirname, '..', 'protocol.md'))
+  .option('--protocols-dir <path>', 'Directory containing agent protocols', join(__dirname, '..', 'protocols'))
   .option('--ollama-host <url>', 'Ollama host URL')
   .option('--output-dir <path>', 'Output directory for reports', './eval-results')
   .option('--max-turns <n>', 'Max turns per transcript', '80')
@@ -1263,7 +1684,7 @@ program
     await evaluate({
       models: opts.models,
       sessionIds: opts.sessions,
-      protocolPath: resolve(opts.protocol),
+      protocolsDir: resolve(opts.protocolsDir),
       ollamaHost: opts.ollamaHost,
       outputDir: resolve(opts.outputDir),
       maxTurns: parseInt(opts.maxTurns, 10),
@@ -1275,7 +1696,7 @@ program
 
 ```bash
 git add src/evaluate.ts src/index.ts
-git commit -m "feat: add model evaluation harness for comparing extraction quality"
+git commit -m "feat: add three-agent model evaluation harness"
 ```
 
 ---
