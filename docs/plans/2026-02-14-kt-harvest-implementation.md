@@ -667,11 +667,12 @@ git commit -m "feat: add three-agent protocol files (scanner, extractor, verifie
 import { describe, it, expect } from 'vitest';
 import { parseSessions, parseSessionList } from '../src/ccvault.js';
 
-// Test with realistic ccvault JSON output
+// Test with realistic ccvault v0.1.7+ JSON output (includes project_path)
 const sampleListOutput = JSON.stringify([
   {
     id: 'abc-123',
     project_id: 1,
+    project_path: '/Users/me/GitHub/my-project',
     started_at: '2026-02-14T10:00:00Z',
     ended_at: '2026-02-14T10:30:00Z',
     model: 'claude-opus-4-6',
@@ -680,6 +681,7 @@ const sampleListOutput = JSON.stringify([
   {
     id: 'def-456',
     project_id: 2,
+    project_path: '/Users/me/GitHub/other-project',
     started_at: '2026-02-14T11:00:00Z',
     ended_at: '2026-02-14T11:45:00Z',
     model: 'claude-sonnet-4-5-20250929',
@@ -692,6 +694,7 @@ describe('parseSessionList', () => {
     const sessions = parseSessionList(sampleListOutput);
     expect(sessions).toHaveLength(2);
     expect(sessions[0].id).toBe('abc-123');
+    expect(sessions[0].project_path).toBe('/Users/me/GitHub/my-project');
     expect(sessions[1].model).toBe('claude-sonnet-4-5-20250929');
   });
 
@@ -715,6 +718,7 @@ import { execSync } from 'child_process';
 export interface CcvaultSession {
   id: string;
   project_id: number;
+  project_path: string; // added in ccvault v0.1.7
   started_at: string;
   ended_at: string;
   model: string;
@@ -744,15 +748,8 @@ export function exportSession(sessionId: string): string {
   });
 }
 
-export function getProjectPath(session: CcvaultSession): string {
-  // Get project path from ccvault for namespace detection
-  const output = execSync(`ccvault show ${session.id} --json`, {
-    encoding: 'utf-8',
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  const data = JSON.parse(output);
-  return data.project_path || '';
-}
+// Note: project_path is now included in list-sessions output (ccvault v0.1.7+)
+// No need for a separate getProjectPath() call per session.
 ```
 
 Note: `listSessions`, `syncSessions`, `exportSession`, and `getProjectPath` call the real ccvault binary. They're tested via integration tests (Task 8), not unit tests. Only the JSON parsing is unit-tested here.
@@ -1226,6 +1223,26 @@ export function getExistingNodeTitles(namespace: string): string[] {
     return [];
   }
 }
+
+/**
+ * Resolve a project path to a kt namespace using kt's project-to-namespace mappings.
+ * Falls back to 'default' if no mapping exists.
+ * Uses project_path from ccvault list-sessions (v0.1.7+).
+ */
+export function resolveNamespace(projectPath: string): string {
+  if (!projectPath) return 'default';
+  try {
+    // kt context auto-detects namespace from cwd via project mappings
+    const output = execSync(`kt context --cwd "${projectPath}" --format json`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    });
+    const data = JSON.parse(output);
+    return data.namespace || 'default';
+  } catch {
+    return 'default';
+  }
+}
 ```
 
 **Step 4: Run test to verify it passes**
@@ -1258,7 +1275,7 @@ import { scan } from './agents/scanner.js';
 import { extract } from './agents/extractor.js';
 import { verify } from './agents/verifier.js';
 import { ExtractedNode } from './agents/types.js';
-import { captureNode, getExistingNodeTitles } from './kt.js';
+import { captureNode, getExistingNodeTitles, resolveNamespace } from './kt.js';
 import { State } from './state.js';
 import { resolve, join } from 'path';
 import { homedir } from 'os';
@@ -1358,7 +1375,7 @@ export async function harvest(options: HarvestOptions): Promise<SessionResult[]>
 
       // Extract flagged turns into focused document
       const flaggedContent = extractTurnsByIndices(processed, flaggedIndices);
-      const namespace = 'default'; // TODO: detect from project path via kt mappings
+      const namespace = resolveNamespace(session.project_path); // uses kt project-to-namespace mappings
 
       // AGENT 2: Extractor
       console.log(`  [extractor] Extracting from ${flaggedIndices.length} flagged turns...`);
