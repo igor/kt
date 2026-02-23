@@ -5,6 +5,7 @@ import { searchSimilar } from '../db/vec.js';
 interface SearchOptions {
   namespace?: string;
   limit?: number;
+  excludeIds?: string[];
 }
 
 function rowToNode(row: any): Node {
@@ -26,6 +27,12 @@ export function searchNodes(query: string, options: SearchOptions = {}): Node[] 
   if (options.namespace) {
     conditions.push('namespace = ?');
     params.push(options.namespace);
+  }
+
+  if (options.excludeIds && options.excludeIds.length > 0) {
+    const exPlaceholders = options.excludeIds.map(() => '?').join(',');
+    conditions.push(`id NOT IN (${exPlaceholders})`);
+    params.push(...options.excludeIds);
   }
 
   const limit = options.limit || 20;

@@ -15,6 +15,10 @@ export function linkCommand(): Command {
       }
 
       const link = createLink(source, type, target, options.context);
+      if (!link) {
+        console.error('Cannot link a node to itself.');
+        process.exit(1);
+      }
       console.log(`Linked: ${source} ${type} ${target}`);
     });
 }

@@ -50,6 +50,7 @@ export function findSimilarNodes(
     return searchNodes(options.keyword, {
       namespace: options.namespace,
       limit,
+      excludeIds: options.excludeIds,
     });
   }
 

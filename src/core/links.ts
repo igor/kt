@@ -16,7 +16,9 @@ export function createLink(
   linkType: 'supersedes' | 'contradicts' | 'related',
   targetId: string,
   context?: string,
-): Link {
+): Link | null {
+  if (sourceId === targetId) return null;
+
   const db = getDatabase();
   const id = generateId(`${sourceId}-${linkType}-${targetId}`);
 
