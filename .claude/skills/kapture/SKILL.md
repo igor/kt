@@ -16,7 +16,7 @@ Help the user save important knowledge from this session to their knowledge trac
    - Strategic insights or patterns noticed
    - Technical discoveries or solutions found
 
-2. For each piece of knowledge, ask the user if they want to capture it. Present it as a brief summary.
+2. Present all identified items as a numbered list, then use the selection UX below to ask which to capture.
 
 3. For each approved item, run the kt capture command:
 
@@ -34,6 +34,15 @@ Where:
    - Node IDs created
    - Any similar existing knowledge that was found
    - Any auto-links that were created
+
+## Selection UX
+
+**2–4 items:** Use `AskUserQuestion` with `multiSelect: true`. One option per item, plus an "All of the above" option. The built-in "Other" field lets the user add notes or override.
+
+**5+ items:** Show numbered list, then prompt:
+> `all` · `1 3 5` · `n` — which to capture?
+
+Parse: `y`/`all`/`a` = everything · numbers (space or comma separated) = those items · `n`/`none`/`skip` = nothing.
 
 ## Guidelines
 
@@ -54,9 +63,9 @@ Claude: From this session, I identified these worth capturing:
 
 2. **Client X preference**: Rejected sprint format — too disruptive to their quarterly planning cycle.
 
-Want me to capture both, or just specific ones?
+→ [AskUserQuestion multiSelect with "EP Advisory pricing", "Client X preference", "All of the above"]
 
-User: Both
+User: [selects "EP Advisory pricing" + "Client X preference"]
 
 Claude: [runs kt capture for each]
 Captured:

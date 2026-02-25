@@ -21,7 +21,14 @@ kt compact --detect-stale --dry-run --format json
    - How many clusters were detected
    - For each cluster: the node titles and a brief preview of contents
 
-3. Ask the user which clusters to compact (all, specific ones, or none).
+3. Ask the user which clusters to compact using the selection UX:
+
+   **2–4 clusters:** Use `AskUserQuestion` with `multiSelect: true`. One option per cluster, plus "All clusters". The built-in "Other" field lets the user add notes.
+
+   **5+ clusters:** Prompt after the list:
+   > `all` · `1 3` · `n` — which to compact?
+
+   Parse: `y`/`all`/`a` = everything · numbers (space or comma separated) = those clusters · `n`/`none`/`skip` = nothing.
 
 4. For approved clusters, run the actual compaction:
 
@@ -63,9 +70,9 @@ Cluster 2: "Pricing model evolution" (3 nodes, namespace: ep-advisory)
   - kt-k1l2: "Dropped basic tier"
   - kt-m3n4: "Enterprise tier details"
 
-Compact both, one, or neither?
+→ [AskUserQuestion multiSelect with "Cluster 1: Client X engagement", "Cluster 2: Pricing model evolution", "All clusters"]
 
-User: Both
+User: [selects both]
 
 Claude: [runs kt compact]
 Done:
