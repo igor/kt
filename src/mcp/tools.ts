@@ -4,24 +4,19 @@ import { getNode } from '../core/nodes.js';
 import { listNamespaces } from '../core/namespaces.js';
 import { getLinks } from '../core/links.js';
 import { getDatabase } from '../db/connection.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-// Types matching MCP tool result format
-interface ToolResult {
-  content: Array<{ type: 'text'; text: string }>;
-  isError?: boolean;
-}
-
-function jsonResult(data: unknown): ToolResult {
+function jsonResult(data: unknown): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
-function errorResult(message: string): ToolResult {
+function errorResult(message: string): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
 }
 
 // --- Tool Handlers ---
 
-export function handleSearch(params: { query: string; namespace?: string; limit?: number }): ToolResult {
+export function handleSearch(params: { query: string; namespace?: string; limit?: number }): CallToolResult {
   const nodes = searchNodes(params.query, {
     namespace: params.namespace,
     limit: params.limit ?? 10,
@@ -38,7 +33,7 @@ export function handleSearch(params: { query: string; namespace?: string; limit?
   });
 }
 
-export function handleCapture(params: { content: string; title?: string; namespace?: string; tags?: string[] }): ToolResult {
+export function handleCapture(params: { content: string; title?: string; namespace?: string; tags?: string[] }): CallToolResult {
   const namespace = params.namespace || 'default';
   const result = captureWithIntelligence({
     namespace,
@@ -61,7 +56,7 @@ export function handleCapture(params: { content: string; title?: string; namespa
   });
 }
 
-export function handleContext(params: { namespace?: string; limit?: number }): ToolResult {
+export function handleContext(params: { namespace?: string; limit?: number }): CallToolResult {
   const namespace = params.namespace || 'default';
   const db = getDatabase();
   const limit = params.limit ?? 5;
@@ -105,7 +100,7 @@ export function handleContext(params: { namespace?: string; limit?: number }): T
   });
 }
 
-export function handleShow(params: { id: string }): ToolResult {
+export function handleShow(params: { id: string }): CallToolResult {
   const node = getNode(params.id);
   if (!node) return errorResult(`Node ${params.id} not found`);
 
@@ -113,7 +108,7 @@ export function handleShow(params: { id: string }): ToolResult {
   return jsonResult({ node, links });
 }
 
-export function handleListNamespaces(): ToolResult {
+export function handleListNamespaces(): CallToolResult {
   const namespaces = listNamespaces();
   return jsonResult({ namespaces });
 }
