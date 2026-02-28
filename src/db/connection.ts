@@ -1,9 +1,34 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import * as sqliteVec from 'sqlite-vec';
 
 let db: Database.Database | null = null;
+
+export interface DatabaseResolution {
+  dbPath: string;
+  vaultRoot: string | null;
+}
+
+export function resolveDatabase(cwd: string, envOverride?: string): DatabaseResolution {
+  if (envOverride) {
+    return { dbPath: envOverride, vaultRoot: null };
+  }
+
+  let dir = path.resolve(cwd);
+  const root = path.parse(dir).root;
+
+  while (dir !== root) {
+    if (fs.existsSync(path.join(dir, '.kt'))) {
+      return { dbPath: path.join(dir, '.kt', 'kt.db'), vaultRoot: dir };
+    }
+    dir = path.dirname(dir);
+  }
+
+  const globalDir = path.join(os.homedir(), '.kt');
+  return { dbPath: path.join(globalDir, 'kt.db'), vaultRoot: null };
+}
 
 export function createDatabase(dbPath: string): Database.Database {
   // Ensure directory exists
