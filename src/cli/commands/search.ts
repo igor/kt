@@ -1,7 +1,28 @@
 import { Command } from 'commander';
 import { searchNodes, semanticSearch } from '../../core/search.js';
 import { generateEmbedding } from '../../core/embeddings.js';
+import { getPendingEmbeddings, markEmbeddingDone } from '../../core/nodes.js';
+import { insertEmbedding } from '../../db/vec.js';
 import { formatNodeList, detectFormat, type Format } from '../format.js';
+
+async function flushPendingEmbeddings(): Promise<number> {
+  const pending = getPendingEmbeddings(10);
+  if (pending.length === 0) return 0;
+
+  let flushed = 0;
+  for (const node of pending) {
+    const text = node.title ? `${node.title}\n${node.content}` : node.content;
+    const embedding = await generateEmbedding(text);
+    if (embedding) {
+      insertEmbedding(node.id, embedding);
+      markEmbeddingDone(node.id);
+      flushed++;
+    } else {
+      break;
+    }
+  }
+  return flushed;
+}
 
 export function searchCommand(): Command {
   return new Command('search')
@@ -21,6 +42,12 @@ export function searchCommand(): Command {
         // Try semantic search first
         const embedding = await generateEmbedding(query);
         if (embedding) {
+          // Opportunistically embed pending nodes while Ollama is hot
+          const flushed = await flushPendingEmbeddings();
+          if (flushed > 0) {
+            process.stderr.write(`(embedded ${flushed} pending node${flushed > 1 ? 's' : ''})\n`);
+          }
+
           results = semanticSearch(embedding, {
             namespace: options.namespace,
             limit,

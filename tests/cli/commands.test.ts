@@ -18,11 +18,11 @@ describe('CLI integration', () => {
 
   it('capture creates a node and prints its ID', () => {
     const output = kt('capture "Test knowledge" --namespace test');
-    expect(output).toMatch(/kt-[a-f0-9]{6}/);
+    expect(output).toMatch(/kt-[a-f0-9]{8}/);
   });
 
   it('show retrieves a captured node', () => {
-    const id = kt('capture "Show me this" --namespace test').match(/kt-[a-f0-9]{6}/)![0];
+    const id = kt('capture "Show me this" --namespace test').match(/kt-[a-f0-9]{8}/)![0];
     const output = kt(`show ${id} --format json`);
     const node = JSON.parse(output);
     expect(node.content).toBe('Show me this');
@@ -44,8 +44,8 @@ describe('CLI integration', () => {
   });
 
   it('link creates a relationship', () => {
-    const id1 = kt('capture "Old insight" --namespace test').match(/kt-[a-f0-9]{6}/)![0];
-    const id2 = kt('capture "New insight" --namespace test').match(/kt-[a-f0-9]{6}/)![0];
+    const id1 = kt('capture "Old insight" --namespace test').match(/kt-[a-f0-9]{8}/)![0];
+    const id2 = kt('capture "New insight" --namespace test').match(/kt-[a-f0-9]{8}/)![0];
     kt(`link ${id2} supersedes ${id1}`);
 
     const output = kt(`show ${id1} --format json`);
@@ -54,7 +54,7 @@ describe('CLI integration', () => {
   });
 
   it('stale lists stale nodes', () => {
-    const id = kt('capture "Will go stale" --namespace test').match(/kt-[a-f0-9]{6}/)![0];
+    const id = kt('capture "Will go stale" --namespace test').match(/kt-[a-f0-9]{8}/)![0];
     kt(`status ${id} stale`);
     const output = kt('stale --format json');
     const nodes = JSON.parse(output);
@@ -86,8 +86,8 @@ describe('CLI integration', () => {
 
   it('context includes node_count and link_count per node', () => {
     kt('ns create ctx --name "Context Test"');
-    const id1 = kt('capture "First knowledge" --namespace ctx --title "First"').match(/kt-[a-f0-9]{6}/)![0];
-    const id2 = kt('capture "Second knowledge" --namespace ctx --title "Second"').match(/kt-[a-f0-9]{6}/)![0];
+    const id1 = kt('capture "First knowledge" --namespace ctx --title "First"').match(/kt-[a-f0-9]{8}/)![0];
+    const id2 = kt('capture "Second knowledge" --namespace ctx --title "Second"').match(/kt-[a-f0-9]{8}/)![0];
     kt(`link ${id1} related ${id2}`);
 
     const output = kt('context --namespace ctx --format json');

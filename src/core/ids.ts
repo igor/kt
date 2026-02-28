@@ -6,5 +6,5 @@ export function generateId(content: string): string {
     .createHash('sha256')
     .update(`${content}|${timestamp}`)
     .digest('hex');
-  return `kt-${hash.substring(0, 6)}`;
+  return `kt-${hash.substring(0, 8)}`;
 }

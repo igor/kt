@@ -8,7 +8,9 @@ interface Stats {
   stale: number;
   compacted: number;
   by_namespace: { namespace: string; count: number }[];
+  embedded: number;
   pending_embeddings: number;
+  embedding_coverage: string;
   compaction_summaries: number;
   oldest_active: string | null;
 }
@@ -43,13 +45,18 @@ export function statsCommand(): Command {
             "SELECT namespace, COUNT(*) as count FROM nodes WHERE status != 'compacted' GROUP BY namespace ORDER BY count DESC"
           ).all() as { namespace: string; count: number }[];
 
+      const embedded = total - pending;
+      const coveragePct = total > 0 ? Math.round((embedded / total) * 100) : 100;
+
       const stats: Stats = {
         total,
         active,
         stale,
         compacted,
         by_namespace: byNs,
+        embedded,
         pending_embeddings: pending,
+        embedding_coverage: `${embedded}/${total} (${coveragePct}%)`,
         compaction_summaries: summaries,
         oldest_active: oldest?.updated_at || null,
       };
@@ -61,7 +68,10 @@ export function statsCommand(): Command {
       } else {
         console.log(`Total: ${total}  (active: ${active}, stale: ${stale}, compacted: ${compacted})`);
         console.log(`Compaction summaries: ${summaries}`);
-        console.log(`Pending embeddings: ${pending}`);
+        console.log(`Embedding coverage: ${embedded}/${total} (${coveragePct}%)`);
+        if (pending > 0) {
+          console.log(`  ⚠ ${pending} nodes missing embeddings — run kt embed`);
+        }
         if (oldest) {
           console.log(`Oldest active node: ${oldest.updated_at}`);
         }

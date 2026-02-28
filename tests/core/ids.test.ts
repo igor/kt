@@ -4,7 +4,7 @@ import { generateId } from '../../src/core/ids.js';
 describe('generateId', () => {
   it('returns a string starting with kt-', () => {
     const id = generateId('test content');
-    expect(id).toMatch(/^kt-[a-f0-9]{6}$/);
+    expect(id).toMatch(/^kt-[a-f0-9]{8}$/);
   });
 
   it('generates different IDs for same content (timestamp-based)', () => {
