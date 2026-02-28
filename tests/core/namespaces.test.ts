@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createDatabase, closeDatabase } from '../../src/db/connection.js';
 import {
-  createNamespace, listNamespaces, getNamespace, deleteNamespace,
+  createNamespace, listNamespaces, getNamespace, deleteNamespace, ensureNamespace,
 } from '../../src/core/namespaces.js';
 import fs from 'fs';
 import path from 'path';
@@ -38,5 +38,22 @@ describe('namespaces', () => {
     createNamespace('temp', 'Temporary');
     deleteNamespace('temp');
     expect(getNamespace('temp')).toBeNull();
+  });
+
+  it('auto-creates parent namespaces for dotted slugs', () => {
+    ensureNamespace('clients.google.workshop');
+    expect(getNamespace('clients')).toBeDefined();
+    expect(getNamespace('clients')!.name).toBe('clients');
+    expect(getNamespace('clients.google')).toBeDefined();
+    expect(getNamespace('clients.google')!.name).toBe('clients.google');
+    expect(getNamespace('clients.google.workshop')).toBeDefined();
+  });
+
+  it('is idempotent for parent creation', () => {
+    ensureNamespace('clients');
+    ensureNamespace('clients.google');
+    ensureNamespace('clients.google.workshop');
+    const list = listNamespaces();
+    expect(list.filter(n => n.slug === 'clients')).toHaveLength(1);
   });
 });

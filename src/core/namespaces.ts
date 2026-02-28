@@ -16,9 +16,13 @@ export function createNamespace(slug: string, name: string, description?: string
 
 export function ensureNamespace(slug: string): void {
   const db = getDatabase();
-  db.prepare(`
-    INSERT OR IGNORE INTO namespaces (slug, name) VALUES (?, ?)
-  `).run(slug, slug);
+  const parts = slug.split('.');
+  for (let i = 1; i <= parts.length; i++) {
+    const prefix = parts.slice(0, i).join('.');
+    db.prepare(`
+      INSERT OR IGNORE INTO namespaces (slug, name) VALUES (?, ?)
+    `).run(prefix, prefix);
+  }
 }
 
 export function getNamespace(slug: string): Namespace | null {
