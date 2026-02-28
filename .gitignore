@@ -4,3 +4,10 @@ dist/
 *.db-wal
 *.db-shm
 .worktrees/
+
+# MCP server & infrastructure (private)
+src/mcp/
+tests/mcp/
+deploy/
+docs/plans/*meshnet*
+docs/plans/*mcp*
