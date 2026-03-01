@@ -17,8 +17,6 @@ import { embedCommand } from './cli/commands/embed.js';
 import { compactCommand } from './cli/commands/compact.js';
 import { listCommand } from './cli/commands/list.js';
 import { runDigest } from './cli/commands/digest.js';
-import { serveCommand } from './cli/commands/serve.js';
-import { authCommand } from './cli/commands/auth.js';
 import { initCommand } from './cli/commands/init.js';
 
 // Initialize database — walk-up resolution finds .kt/ per vault, falls back to ~/.kt/
@@ -55,8 +53,6 @@ program.addCommand(contextCommand());
 program.addCommand(embedCommand());
 program.addCommand(compactCommand());
 program.addCommand(listCommand());
-program.addCommand(serveCommand());
-program.addCommand(authCommand());
 program.addCommand(initCommand());
 
 program.parseAsync().catch((err) => {
