@@ -47,18 +47,18 @@ describe('project mappings', () => {
 describe('vault-local resolution', () => {
   it('derives namespace from relative path to vault root', () => {
     const ns = resolveNamespaceFromVault(
-      '/path/to/vault/clients/google',
+      '/path/to/vault/clients/acme',
       '/path/to/vault'
     );
-    expect(ns).toBe('clients.google');
+    expect(ns).toBe('clients.acme');
   });
 
   it('caps at 3 levels', () => {
     const ns = resolveNamespaceFromVault(
-      '/path/to/vault/clients/google/workshop/day-1',
+      '/path/to/vault/clients/acme/workshop/day-1',
       '/path/to/vault'
     );
-    expect(ns).toBe('clients.google.workshop');
+    expect(ns).toBe('clients.acme.workshop');
   });
 
   it('returns null at vault root', () => {

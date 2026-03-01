@@ -13,8 +13,8 @@ describe('vault workflow', () => {
   const testDir = path.join(os.tmpdir(), 'kt-vault-test-' + Date.now());
   const vaultDir = path.join(testDir, 'my-vault');
   const clientsDir = path.join(vaultDir, 'clients');
-  const googleDir = path.join(clientsDir, 'google');
-  const deepDir = path.join(googleDir, 'q1', 'workshop');
+  const acmeDir = path.join(clientsDir, 'acme');
+  const deepDir = path.join(acmeDir, 'q1', 'workshop');
 
   beforeEach(() => {
     fs.mkdirSync(deepDir, { recursive: true });
@@ -30,46 +30,46 @@ describe('vault workflow', () => {
   });
 
   it('resolveDatabase finds vault .kt from subdirectory', () => {
-    const result = resolveDatabase(googleDir);
+    const result = resolveDatabase(acmeDir);
     expect(result.dbPath).toBe(path.join(vaultDir, '.kt', 'kt.db'));
     expect(result.vaultRoot).toBe(vaultDir);
   });
 
   it('derives namespace from folder depth', () => {
-    const ns = resolveNamespaceFromVault(googleDir, vaultDir);
-    expect(ns).toBe('clients.google');
+    const ns = resolveNamespaceFromVault(acmeDir, vaultDir);
+    expect(ns).toBe('clients.acme');
   });
 
   it('caps namespace at 3 levels', () => {
     const ns = resolveNamespaceFromVault(deepDir, vaultDir);
-    expect(ns).toBe('clients.google.q1');
+    expect(ns).toBe('clients.acme.q1');
   });
 
   it('captures into auto-derived namespace', () => {
-    const ns = resolveNamespaceFromVault(googleDir, vaultDir)!;
+    const ns = resolveNamespaceFromVault(acmeDir, vaultDir)!;
     ensureNamespace(ns);
-    const node = createNode({ namespace: ns, content: 'Google insight about branding' });
-    expect(node.namespace).toBe('clients.google');
+    const node = createNode({ namespace: ns, content: 'Acme insight about branding' });
+    expect(node.namespace).toBe('clients.acme');
   });
 
   it('auto-creates parent namespaces on capture', () => {
-    const ns = resolveNamespaceFromVault(googleDir, vaultDir)!;
+    const ns = resolveNamespaceFromVault(acmeDir, vaultDir)!;
     ensureNamespace(ns);
-    createNode({ namespace: ns, content: 'Google insight' });
+    createNode({ namespace: ns, content: 'Acme insight' });
 
     const nsList = listNamespaces();
     const slugs = nsList.map(n => n.slug);
     expect(slugs).toContain('clients');
-    expect(slugs).toContain('clients.google');
+    expect(slugs).toContain('clients.acme');
   });
 
   it('search from parent includes child namespaces', () => {
     // Create nodes in child namespaces
-    ensureNamespace('clients.google');
-    ensureNamespace('clients.hpi');
+    ensureNamespace('clients.acme');
+    ensureNamespace('clients.globex');
     ensureNamespace('other');
-    createNode({ namespace: 'clients.google', content: 'Google insight about branding' });
-    createNode({ namespace: 'clients.hpi', content: 'HPI insight about research' });
+    createNode({ namespace: 'clients.acme', content: 'Acme insight about branding' });
+    createNode({ namespace: 'clients.globex', content: 'Globex insight about research' });
     createNode({ namespace: 'other', content: 'Unrelated insight' });
 
     // Search from parent should find both children
@@ -80,19 +80,19 @@ describe('vault workflow', () => {
 
   it('search from child does not include parent', () => {
     ensureNamespace('clients');
-    ensureNamespace('clients.google');
+    ensureNamespace('clients.acme');
     createNode({ namespace: 'clients', content: 'Top-level clients note' });
-    createNode({ namespace: 'clients.google', content: 'Google-specific note' });
+    createNode({ namespace: 'clients.acme', content: 'Acme-specific note' });
 
-    const results = searchNodes('note', { namespace: 'clients.google' });
-    expect(results.every(r => r.namespace === 'clients.google')).toBe(true);
+    const results = searchNodes('note', { namespace: 'clients.acme' });
+    expect(results.every(r => r.namespace === 'clients.acme')).toBe(true);
   });
 
   it('context from vault root shows all namespaces', () => {
     ensureNamespace('clients');
-    ensureNamespace('clients.google');
+    ensureNamespace('clients.acme');
     createNode({ namespace: 'clients', content: 'Client insight' });
-    createNode({ namespace: 'clients.google', content: 'Google insight' });
+    createNode({ namespace: 'clients.acme', content: 'Acme insight' });
 
     // No namespace filter = all nodes
     const allNodes = listNodes({ status: 'active' });

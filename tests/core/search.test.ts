@@ -53,8 +53,8 @@ describe('keyword search', () => {
 
   it('prefix-matches namespace with dot children', () => {
     createNode({ namespace: 'clients', content: 'Top-level client knowledge' });
-    createNode({ namespace: 'clients.google', content: 'Google project knowledge' });
-    createNode({ namespace: 'clients.hpi', content: 'HPI project knowledge' });
+    createNode({ namespace: 'clients.acme', content: 'Acme project knowledge' });
+    createNode({ namespace: 'clients.globex', content: 'Globex project knowledge' });
     createNode({ namespace: 'other', content: 'Unrelated knowledge item' });
 
     const results = searchNodes('knowledge', { namespace: 'clients' });
@@ -64,10 +64,10 @@ describe('keyword search', () => {
 
   it('does not match upward from child namespace', () => {
     createNode({ namespace: 'clients', content: 'Top-level note' });
-    createNode({ namespace: 'clients.google', content: 'Google specific note' });
+    createNode({ namespace: 'clients.acme', content: 'Acme specific note' });
 
-    const results = searchNodes('note', { namespace: 'clients.google' });
-    expect(results.every(r => r.namespace === 'clients.google')).toBe(true);
+    const results = searchNodes('note', { namespace: 'clients.acme' });
+    expect(results.every(r => r.namespace === 'clients.acme')).toBe(true);
   });
 });
 

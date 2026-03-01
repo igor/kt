@@ -51,7 +51,7 @@ Show a one-line-per-session inventory. Include project, topic summary, turn coun
 2. [ep-advisory] Pricing model discussion (28 turns, 1.5h) — already captured
 3. [dotfiles] zsh config tweak (8 turns, 15min)
 4. [kt] Daily-kapture redesign (35 turns, 1h)
-5. [oio-google] Workshop prep call notes (22 turns, 45min)
+5. [clients-acme] Workshop prep call notes (22 turns, 45min)
 ```
 
 Then ask which sessions are worth reviewing deeper:

@@ -7,7 +7,7 @@ import os from 'os';
 describe('resolveDatabase', () => {
   const testDir = path.join(os.tmpdir(), 'kt-resolve-db-' + Date.now());
   const vaultRoot = path.join(testDir, 'my-vault');
-  const subDir = path.join(vaultRoot, 'clients', 'google');
+  const subDir = path.join(vaultRoot, 'clients', 'acme');
 
   beforeEach(() => {
     fs.mkdirSync(subDir, { recursive: true });

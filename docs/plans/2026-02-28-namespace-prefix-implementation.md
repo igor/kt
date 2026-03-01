@@ -31,8 +31,8 @@ describe('namespaceFilter', () => {
   });
 
   it('handles dotted namespace', () => {
-    const filter = namespaceFilter('clients.google');
-    expect(filter.params).toEqual(['clients.google', 'clients.google.%']);
+    const filter = namespaceFilter('clients.acme');
+    expect(filter.params).toEqual(['clients.acme', 'clients.acme.%']);
   });
 
   it('returns null filter when namespace is undefined', () => {
@@ -91,18 +91,18 @@ Add to `tests/core/namespaces.test.ts`:
 
 ```typescript
 it('auto-creates parent namespaces for dotted slugs', () => {
-  ensureNamespace('clients.google.workshop');
+  ensureNamespace('clients.acme.workshop');
   expect(getNamespace('clients')).toBeDefined();
   expect(getNamespace('clients')!.name).toBe('clients');
-  expect(getNamespace('clients.google')).toBeDefined();
-  expect(getNamespace('clients.google')!.name).toBe('clients.google');
-  expect(getNamespace('clients.google.workshop')).toBeDefined();
+  expect(getNamespace('clients.acme')).toBeDefined();
+  expect(getNamespace('clients.acme')!.name).toBe('clients.acme');
+  expect(getNamespace('clients.acme.workshop')).toBeDefined();
 });
 
 it('is idempotent for parent creation', () => {
   ensureNamespace('clients');
-  ensureNamespace('clients.google');
-  ensureNamespace('clients.google.workshop');
+  ensureNamespace('clients.acme');
+  ensureNamespace('clients.acme.workshop');
   const list = listNamespaces();
   expect(list.filter(n => n.slug === 'clients')).toHaveLength(1);
 });
@@ -111,7 +111,7 @@ it('is idempotent for parent creation', () => {
 **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/core/namespaces.test.ts`
-Expected: FAIL — `clients` namespace not found (only `clients.google.workshop` gets created)
+Expected: FAIL — `clients` namespace not found (only `clients.acme.workshop` gets created)
 
 **Step 3: Write minimal implementation**
 
@@ -163,7 +163,7 @@ import os from 'os';
 describe('resolveDatabase', () => {
   const testDir = path.join(os.tmpdir(), 'kt-resolve-db-' + Date.now());
   const vaultRoot = path.join(testDir, 'my-vault');
-  const subDir = path.join(vaultRoot, 'clients', 'google');
+  const subDir = path.join(vaultRoot, 'clients', 'acme');
 
   beforeEach(() => {
     fs.mkdirSync(subDir, { recursive: true });
@@ -271,18 +271,18 @@ Add to `tests/core/mappings.test.ts`:
 describe('vault-local resolution', () => {
   it('derives namespace from relative path to vault root', () => {
     const ns = resolveNamespaceFromVault(
-      '/path/to/vault/clients/google',
+      '/path/to/vault/clients/acme',
       '/path/to/vault'
     );
-    expect(ns).toBe('clients.google');
+    expect(ns).toBe('clients.acme');
   });
 
   it('caps at 3 levels', () => {
     const ns = resolveNamespaceFromVault(
-      '/path/to/vault/clients/google/workshop/day-1',
+      '/path/to/vault/clients/acme/workshop/day-1',
       '/path/to/vault'
     );
-    expect(ns).toBe('clients.google.workshop');
+    expect(ns).toBe('clients.acme.workshop');
   });
 
   it('returns null at vault root', () => {
@@ -382,8 +382,8 @@ Add to `tests/core/search.test.ts`:
 ```typescript
 it('prefix-matches namespace with dot children', () => {
   createNode({ namespace: 'clients', content: 'Top-level client knowledge' });
-  createNode({ namespace: 'clients.google', content: 'Google project knowledge' });
-  createNode({ namespace: 'clients.hpi', content: 'HPI project knowledge' });
+  createNode({ namespace: 'clients.acme', content: 'Acme project knowledge' });
+  createNode({ namespace: 'clients.globex', content: 'Globex project knowledge' });
   createNode({ namespace: 'other', content: 'Unrelated knowledge' });
 
   const results = searchNodes('knowledge', { namespace: 'clients' });
@@ -393,10 +393,10 @@ it('prefix-matches namespace with dot children', () => {
 
 it('does not match upward from child namespace', () => {
   createNode({ namespace: 'clients', content: 'Top-level' });
-  createNode({ namespace: 'clients.google', content: 'Google specific' });
+  createNode({ namespace: 'clients.acme', content: 'Acme specific' });
 
-  const results = searchNodes('', { namespace: 'clients.google' });
-  expect(results.every(r => r.namespace === 'clients.google')).toBe(true);
+  const results = searchNodes('', { namespace: 'clients.acme' });
+  expect(results.every(r => r.namespace === 'clients.acme')).toBe(true);
 });
 ```
 
@@ -704,8 +704,8 @@ describe('vault workflow', () => {
   const testDir = path.join(os.tmpdir(), 'kt-vault-test-' + Date.now());
   const vaultDir = path.join(testDir, 'my-vault');
   const clientsDir = path.join(vaultDir, 'clients');
-  const googleDir = path.join(clientsDir, 'google');
-  const deepDir = path.join(googleDir, 'q1', 'workshop');
+  const acmeDir = path.join(clientsDir, 'acme');
+  const deepDir = path.join(acmeDir, 'q1', 'workshop');
 
   function kt(args: string, cwd: string): string {
     return execSync(`npx tsx src/index.ts ${args}`, { cwd, encoding: 'utf-8' }).trim();
@@ -719,29 +719,29 @@ describe('vault workflow', () => {
   afterEach(() => fs.rmSync(testDir, { recursive: true, force: true }));
 
   it('captures into auto-derived namespace from folder depth', () => {
-    const output = kt('capture "Google insight" --format json', googleDir);
-    expect(output).toContain('clients.google');
+    const output = kt('capture "Acme insight" --format json', acmeDir);
+    expect(output).toContain('clients.acme');
   });
 
   it('caps namespace at 3 levels', () => {
     const output = kt('capture "Deep insight" --format json', deepDir);
-    // q1/workshop is level 4+, should cap at clients.google.q1
-    expect(output).toContain('clients.google.q1');
+    // q1/workshop is level 4+, should cap at clients.acme.q1
+    expect(output).toContain('clients.acme.q1');
     expect(output).not.toContain('workshop');
   });
 
   it('auto-creates parent namespaces', () => {
-    kt('capture "Google insight"', googleDir);
+    kt('capture "Acme insight"', acmeDir);
     const nsList = kt('ns list --format json', vaultDir);
     const namespaces = JSON.parse(nsList);
     const slugs = namespaces.map((n: any) => n.slug);
     expect(slugs).toContain('clients');
-    expect(slugs).toContain('clients.google');
+    expect(slugs).toContain('clients.acme');
   });
 
   it('search from parent includes child namespaces', () => {
-    kt('capture "Google insight about branding"', googleDir);
-    kt('capture "HPI insight about research"', path.join(clientsDir, 'hpi'));
+    kt('capture "Acme insight about branding"', acmeDir);
+    kt('capture "Globex insight about research"', path.join(clientsDir, 'globex'));
     // Search from clients/ should find both
     const results = kt('search insight --format json', clientsDir);
     const parsed = JSON.parse(results);
@@ -750,15 +750,15 @@ describe('vault workflow', () => {
 
   it('search from child does not include parent', () => {
     kt('capture "Top-level clients note"', clientsDir);
-    kt('capture "Google-specific note"', googleDir);
-    const results = kt('search note --format json', googleDir);
+    kt('capture "Acme-specific note"', acmeDir);
+    const results = kt('search note --format json', acmeDir);
     const parsed = JSON.parse(results);
-    expect(parsed.every((r: any) => r.namespace === 'clients.google')).toBe(true);
+    expect(parsed.every((r: any) => r.namespace === 'clients.acme')).toBe(true);
   });
 
   it('context from vault root shows all namespaces', () => {
     kt('capture "Client insight"', clientsDir);
-    kt('capture "Google insight"', googleDir);
+    kt('capture "Acme insight"', acmeDir);
     const ctx = kt('context --format json', vaultDir);
     const parsed = JSON.parse(ctx);
     expect(parsed.total_nodes).toBe(2);
@@ -796,9 +796,9 @@ Expected: No errors (excluding pre-existing MCP type issues)
 
 ```bash
 # Create a test vault
-mkdir -p /tmp/test-vault/clients/google
+mkdir -p /tmp/test-vault/clients/acme
 cd /tmp/test-vault && kt init
-cd /tmp/test-vault/clients/google && kt capture "Test capture"
+cd /tmp/test-vault/clients/acme && kt capture "Test capture"
 cd /tmp/test-vault/clients && kt search "test"
 cd /tmp/test-vault && kt context --format json
 kt ns list

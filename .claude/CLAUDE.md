@@ -18,6 +18,11 @@ This project builds `kt`, a CLI knowledge tracker. You have access to the `kt` c
 - Don't capture trivial or temporary information
 - Each captured node should be self-contained and readable without session context
 
+### Public Repository — No Real Names or Data
+- This is a **public GitHub repository**. Never use real client names, project names, or sensitive data from kt source material in code, tests, docs, or examples.
+- Use anonymized placeholders: `acme`, `globex`, `Client X`, `Client Y`, etc.
+- This applies to test fixtures, plan documents, comments, commit messages, and any file tracked by git.
+
 ### Commands Reference
 - `kt capture "<content>" --namespace <ns> --title "<title>"` — Save knowledge
 - `kt search "<query>"` — Search by keyword (or semantic if Ollama running)

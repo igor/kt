@@ -9,8 +9,8 @@ describe('namespaceFilter', () => {
   });
 
   it('handles dotted namespace', () => {
-    const filter = namespaceFilter('clients.google');
-    expect(filter.params).toEqual(['clients.google', 'clients.google.%']);
+    const filter = namespaceFilter('clients.acme');
+    expect(filter.params).toEqual(['clients.acme', 'clients.acme.%']);
   });
 
   it('returns null filter when namespace is undefined', () => {

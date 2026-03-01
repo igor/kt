@@ -25,9 +25,9 @@ explicit-protocol/              ← vault root
     strategy/
     research/
   clients/
-    google/
+    acme/
       workshop/
-    hpi/
+    globex/
 
 ~/GitHub/personal-project/
   .kt/
@@ -51,12 +51,12 @@ Within a vault, namespaces auto-derive from folder structure. No manual mappings
 You're in:                              Resolved namespace:
 explicit-protocol/                   →  (all — vault root)
 explicit-protocol/clients/           →  clients
-explicit-protocol/clients/google/    →  clients.google
-explicit-protocol/clients/google/q1/ →  clients.google  (capped at 3 levels)
+explicit-protocol/clients/acme/    →  clients.acme
+explicit-protocol/clients/acme/q1/ →  clients.acme  (capped at 3 levels)
 ```
 
-Searching from `clients/` includes `clients`, `clients.google`, `clients.hpi`, etc.
-Searching from `clients/google/` includes only `clients.google` and its children.
+Searching from `clients/` includes `clients`, `clients.acme`, `clients.globex`, etc.
+Searching from `clients/acme/` includes only `clients.acme` and its children.
 Never upward.
 
 ## Design Decisions
@@ -80,12 +80,12 @@ The existing `KT_DB_PATH` env var overrides everything (used by tests and MCP se
 
 ```
 Vault root: /path/to/explicit-protocol/
-Cwd:        /path/to/explicit-protocol/clients/google/workshop/
+Cwd:        /path/to/explicit-protocol/clients/acme/workshop/
 
-Relative:   clients/google/workshop
-Segments:   ['clients', 'google', 'workshop']
-Capped:     ['clients', 'google']  (3 levels = 3 segments max)
-Namespace:  clients.google
+Relative:   clients/acme/workshop
+Segments:   ['clients', 'acme', 'workshop']
+Capped:     ['clients', 'acme']  (3 levels = 3 segments max)
+Namespace:  clients.acme
 ```
 
 For the fallback global database (`~/.kt/kt.db`), `project_mappings` still works as before — it's the only way to resolve namespaces without a vault root.
@@ -103,7 +103,7 @@ function namespaceFilter(ns: string): { sql: string; params: string[] } {
 }
 ```
 
-The dot boundary in `${ns}.%` prevents false matches (`clients.go` won't match `clients.google`).
+The dot boundary in `${ns}.%` prevents false matches (`clients.go` won't match `clients.acme`).
 
 ~15 query locations across core modules, CLI commands, and MCP tools need this change.
 
@@ -114,14 +114,14 @@ Namespace segments capped at 3 levels from vault root. Deeper subfolders roll up
 ```
 Level 0:  explicit-protocol/              → (vault root, all namespaces)
 Level 1:  clients/                        → clients
-Level 2:  clients/google/                 → clients.google
-Level 3:  clients/google/workshop/        → clients.google.workshop
-Level 4+: clients/google/workshop/day-1/  → clients.google.workshop (capped)
+Level 2:  clients/acme/                 → clients.acme
+Level 3:  clients/acme/workshop/        → clients.acme.workshop
+Level 4+: clients/acme/workshop/day-1/  → clients.acme.workshop (capped)
 ```
 
 ### Auto-create parent namespace rows
 
-When `ensureNamespace('clients.google.workshop')` runs, it also creates `clients` and `clients.google`. Each gets a name derived from its last segment. All via `INSERT OR IGNORE`.
+When `ensureNamespace('clients.acme.workshop')` runs, it also creates `clients` and `clients.acme`. Each gets a name derived from its last segment. All via `INSERT OR IGNORE`.
 
 ### kt init
 

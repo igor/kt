@@ -41,18 +41,18 @@ describe('namespaces', () => {
   });
 
   it('auto-creates parent namespaces for dotted slugs', () => {
-    ensureNamespace('clients.google.workshop');
+    ensureNamespace('clients.acme.workshop');
     expect(getNamespace('clients')).toBeDefined();
     expect(getNamespace('clients')!.name).toBe('clients');
-    expect(getNamespace('clients.google')).toBeDefined();
-    expect(getNamespace('clients.google')!.name).toBe('clients.google');
-    expect(getNamespace('clients.google.workshop')).toBeDefined();
+    expect(getNamespace('clients.acme')).toBeDefined();
+    expect(getNamespace('clients.acme')!.name).toBe('clients.acme');
+    expect(getNamespace('clients.acme.workshop')).toBeDefined();
   });
 
   it('is idempotent for parent creation', () => {
     ensureNamespace('clients');
-    ensureNamespace('clients.google');
-    ensureNamespace('clients.google.workshop');
+    ensureNamespace('clients.acme');
+    ensureNamespace('clients.acme.workshop');
     const list = listNamespaces();
     expect(list.filter(n => n.slug === 'clients')).toHaveLength(1);
   });
