@@ -3,6 +3,7 @@ import { listNodes } from '../../core/nodes.js';
 import { getConflicts, getLinks } from '../../core/links.js';
 import { resolveNamespace } from '../../core/mappings.js';
 import { getDatabase } from '../../db/connection.js';
+import { namespaceFilter } from '../../core/namespace-filter.js';
 import { detectFormat, type Format } from '../format.js';
 
 interface ContextBrief {
@@ -52,8 +53,9 @@ export function contextCommand(): Command {
       const db = getDatabase();
 
       // Total node count for this namespace
-      const countQuery = namespace
-        ? db.prepare("SELECT COUNT(*) as c FROM nodes WHERE namespace = ? AND status = 'active'").get(namespace)
+      const nsf = namespaceFilter(namespace);
+      const countQuery = nsf
+        ? db.prepare(`SELECT COUNT(*) as c FROM nodes WHERE status = 'active' AND ${nsf.sql}`).get(...nsf.params)
         : db.prepare("SELECT COUNT(*) as c FROM nodes WHERE status = 'active'").get();
       const totalNodes = (countQuery as { c: number }).c;
 
