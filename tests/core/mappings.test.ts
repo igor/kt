@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createDatabase, closeDatabase } from '../../src/db/connection.js';
 import { createNamespace } from '../../src/core/namespaces.js';
-import { addMapping, resolveNamespace, listMappings } from '../../src/core/mappings.js';
+import { addMapping, resolveNamespace, resolveNamespaceFromVault, listMappings } from '../../src/core/mappings.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -41,5 +41,39 @@ describe('project mappings', () => {
     addMapping('/Users/zeigor/GitHub/ep-advisory', 'ep-advisory');
     const ns = resolveNamespace('/Users/zeigor/GitHub/ep-advisory/docs');
     expect(ns).toBe('ep-advisory');
+  });
+});
+
+describe('vault-local resolution', () => {
+  it('derives namespace from relative path to vault root', () => {
+    const ns = resolveNamespaceFromVault(
+      '/path/to/vault/clients/google',
+      '/path/to/vault'
+    );
+    expect(ns).toBe('clients.google');
+  });
+
+  it('caps at 3 levels', () => {
+    const ns = resolveNamespaceFromVault(
+      '/path/to/vault/clients/google/workshop/day-1',
+      '/path/to/vault'
+    );
+    expect(ns).toBe('clients.google.workshop');
+  });
+
+  it('returns null at vault root', () => {
+    const ns = resolveNamespaceFromVault(
+      '/path/to/vault',
+      '/path/to/vault'
+    );
+    expect(ns).toBeNull();
+  });
+
+  it('handles single level', () => {
+    const ns = resolveNamespaceFromVault(
+      '/path/to/vault/clients',
+      '/path/to/vault'
+    );
+    expect(ns).toBe('clients');
   });
 });
