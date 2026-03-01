@@ -28,7 +28,7 @@ createDatabase(resolved.dbPath, resolved.vaultRoot);
 const program = new Command()
   .name('kt')
   .description('Knowledge Tracker — CLI-first knowledge management for AI agents')
-  .version('0.2.0')
+  .version('0.2.1')
   .enablePositionalOptions()
   .option('--days <n>', 'Time window for digest in days', '2')
   .option('--fresh', 'Force regenerate digest (bypass cache)')
