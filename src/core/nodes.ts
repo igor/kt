@@ -1,5 +1,6 @@
 import { getDatabase } from '../db/connection.js';
 import { generateId } from './ids.js';
+import { namespaceFilter } from './namespace-filter.js';
 
 export interface Node {
   id: string;
@@ -73,9 +74,10 @@ export function listNodes(options: ListNodesOptions = {}): Node[] {
   const conditions: string[] = [];
   const params: any[] = [];
 
-  if (options.namespace) {
-    conditions.push('namespace = ?');
-    params.push(options.namespace);
+  const nsFilter = namespaceFilter(options.namespace);
+  if (nsFilter) {
+    conditions.push(nsFilter.sql);
+    params.push(...nsFilter.params);
   }
 
   if (options.status) {

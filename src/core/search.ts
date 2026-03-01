@@ -1,6 +1,7 @@
 import { getDatabase } from '../db/connection.js';
 import type { Node } from './nodes.js';
 import { searchSimilar } from '../db/vec.js';
+import { namespaceFilter } from './namespace-filter.js';
 
 interface SearchOptions {
   namespace?: string;
@@ -24,9 +25,10 @@ export function searchNodes(query: string, options: SearchOptions = {}): Node[] 
   ];
   const params: any[] = [`%${query}%`, `%${query}%`];
 
-  if (options.namespace) {
-    conditions.push('namespace = ?');
-    params.push(options.namespace);
+  const nsFilter = namespaceFilter(options.namespace);
+  if (nsFilter) {
+    conditions.push(nsFilter.sql);
+    params.push(...nsFilter.params);
   }
 
   if (options.excludeIds && options.excludeIds.length > 0) {
@@ -72,9 +74,10 @@ export function semanticSearch(
   ];
   const params: any[] = [...nodeIds];
 
-  if (options.namespace) {
-    conditions.push('namespace = ?');
-    params.push(options.namespace);
+  const nsFilter = namespaceFilter(options.namespace);
+  if (nsFilter) {
+    conditions.push(nsFilter.sql);
+    params.push(...nsFilter.params);
   }
 
   if (options.excludeIds && options.excludeIds.length > 0) {

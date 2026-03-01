@@ -50,6 +50,25 @@ describe('keyword search', () => {
     const results = searchNodes('compacted');
     expect(results).toHaveLength(0);
   });
+
+  it('prefix-matches namespace with dot children', () => {
+    createNode({ namespace: 'clients', content: 'Top-level client knowledge' });
+    createNode({ namespace: 'clients.google', content: 'Google project knowledge' });
+    createNode({ namespace: 'clients.hpi', content: 'HPI project knowledge' });
+    createNode({ namespace: 'other', content: 'Unrelated knowledge item' });
+
+    const results = searchNodes('knowledge', { namespace: 'clients' });
+    expect(results).toHaveLength(3);
+    expect(results.every(r => r.namespace.startsWith('clients'))).toBe(true);
+  });
+
+  it('does not match upward from child namespace', () => {
+    createNode({ namespace: 'clients', content: 'Top-level note' });
+    createNode({ namespace: 'clients.google', content: 'Google specific note' });
+
+    const results = searchNodes('note', { namespace: 'clients.google' });
+    expect(results.every(r => r.namespace === 'clients.google')).toBe(true);
+  });
 });
 
 describe('semantic search', () => {

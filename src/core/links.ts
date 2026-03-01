@@ -1,6 +1,7 @@
 import { getDatabase } from '../db/connection.js';
 import { generateId } from './ids.js';
 import { updateNodeStatus } from './nodes.js';
+import { namespaceFilter } from './namespace-filter.js';
 
 export interface Link {
   id: string;
@@ -51,24 +52,21 @@ export function getBacklinks(nodeId: string): Link[] {
 
 export function getConflicts(namespace?: string): { nodeA: string; nodeB: string; context: string | null }[] {
   const db = getDatabase();
-  const query = namespace
-    ? `SELECT l.source_id, l.target_id, l.context
-       FROM links l
-       JOIN nodes n1 ON l.source_id = n1.id
-       JOIN nodes n2 ON l.target_id = n2.id
-       WHERE l.link_type = 'contradicts'
-       AND n1.status = 'active' AND n2.status = 'active'
-       AND n1.namespace = ?`
-    : `SELECT l.source_id, l.target_id, l.context
-       FROM links l
-       JOIN nodes n1 ON l.source_id = n1.id
-       JOIN nodes n2 ON l.target_id = n2.id
-       WHERE l.link_type = 'contradicts'
-       AND n1.status = 'active' AND n2.status = 'active'`;
+  const nsFilter = namespaceFilter(namespace);
+  const nsClause = nsFilter
+    ? `AND ${nsFilter.sql.replace(/namespace/g, 'n1.namespace')}`
+    : '';
+  const nsParams = nsFilter ? nsFilter.params : [];
 
-  const rows = namespace
-    ? db.prepare(query).all(namespace)
-    : db.prepare(query).all();
+  const query = `SELECT l.source_id, l.target_id, l.context
+    FROM links l
+    JOIN nodes n1 ON l.source_id = n1.id
+    JOIN nodes n2 ON l.target_id = n2.id
+    WHERE l.link_type = 'contradicts'
+    AND n1.status = 'active' AND n2.status = 'active'
+    ${nsClause}`;
+
+  const rows = db.prepare(query).all(...nsParams);
 
   return (rows as any[]).map(r => ({
     nodeA: r.source_id,

@@ -1,5 +1,6 @@
 import { getDatabase } from '../db/connection.js';
 import { searchSimilar } from '../db/vec.js';
+import { namespaceFilter } from './namespace-filter.js';
 
 export interface Cluster {
   nodeIds: string[];
@@ -21,9 +22,10 @@ export function detectClusters(options: DetectClustersOptions = {}): Cluster[] {
   const conditions: string[] = ["status = 'stale'"];
   const params: any[] = [];
 
-  if (options.namespace) {
-    conditions.push('namespace = ?');
-    params.push(options.namespace);
+  const nsFilter = namespaceFilter(options.namespace);
+  if (nsFilter) {
+    conditions.push(nsFilter.sql);
+    params.push(...nsFilter.params);
   }
 
   const staleNodes = db.prepare(

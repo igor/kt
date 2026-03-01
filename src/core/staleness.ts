@@ -1,5 +1,6 @@
 import { getDatabase } from '../db/connection.js';
 import { updateNodeStatus } from './nodes.js';
+import { namespaceFilter } from './namespace-filter.js';
 
 interface DetectStaleOptions {
   maxAgeDays?: number;
@@ -29,9 +30,10 @@ export function detectStaleNodes(options: DetectStaleOptions = {}): DetectStaleR
   ];
   const params: any[] = [];
 
-  if (options.namespace) {
-    conditions.push('namespace = ?');
-    params.push(options.namespace);
+  const nsFilter = namespaceFilter(options.namespace);
+  if (nsFilter) {
+    conditions.push(nsFilter.sql);
+    params.push(...nsFilter.params);
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -63,8 +65,9 @@ export function detectStaleNodes(options: DetectStaleOptions = {}): DetectStaleR
       `n.updated_at >= datetime('now', '-${maxAgeDays} days')`,
     ];
 
-    if (options.namespace) {
-      orphanConditions.push('n.namespace = ?');
+    const orphanNsFilter = namespaceFilter(options.namespace);
+    if (orphanNsFilter) {
+      orphanConditions.push(orphanNsFilter.sql.replace(/namespace/g, 'n.namespace'));
     }
 
     const orphanWhere = `WHERE ${orphanConditions.join(' AND ')}`;
@@ -76,9 +79,8 @@ export function detectStaleNodes(options: DetectStaleOptions = {}): DetectStaleR
       HAVING COUNT(l.id) = 0
     `;
 
-    const orphans = options.namespace
-      ? db.prepare(orphanQuery).all(options.namespace) as { id: string }[]
-      : db.prepare(orphanQuery).all() as { id: string }[];
+    const orphanParams = orphanNsFilter ? orphanNsFilter.params : [];
+    const orphans = db.prepare(orphanQuery).all(...orphanParams) as { id: string }[];
 
     for (const orphan of orphans) {
       if (!staled.includes(orphan.id)) {
