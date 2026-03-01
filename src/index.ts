@@ -19,6 +19,7 @@ import { listCommand } from './cli/commands/list.js';
 import { runDigest } from './cli/commands/digest.js';
 import { serveCommand } from './cli/commands/serve.js';
 import { authCommand } from './cli/commands/auth.js';
+import { initCommand } from './cli/commands/init.js';
 
 // Initialize database
 const dbPath = process.env.KT_DB_PATH || getDefaultDbPath();
@@ -56,6 +57,7 @@ program.addCommand(compactCommand());
 program.addCommand(listCommand());
 program.addCommand(serveCommand());
 program.addCommand(authCommand());
+program.addCommand(initCommand());
 
 program.parseAsync().catch((err) => {
   console.error(err.message || err);
