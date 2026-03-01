@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { listNodes } from '../../core/nodes.js';
 import { getConflicts, getLinks } from '../../core/links.js';
 import { resolveNamespace } from '../../core/mappings.js';
-import { getDatabase } from '../../db/connection.js';
+import { getDatabase, getVaultRoot } from '../../db/connection.js';
 import { namespaceFilter } from '../../core/namespace-filter.js';
 import { detectFormat, type Format } from '../format.js';
 
@@ -48,7 +48,7 @@ export function contextCommand(): Command {
     .option('-l, --limit <number>', 'Max active nodes', '5')
     .option('-f, --format <fmt>', 'Output format')
     .action((options) => {
-      const namespace = options.namespace || resolveNamespace(process.cwd()) || null;
+      const namespace = options.namespace || resolveNamespace(process.cwd(), getVaultRoot()) || null;
       const limit = parseInt(options.limit);
       const db = getDatabase();
 

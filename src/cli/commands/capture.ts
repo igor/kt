@@ -3,6 +3,7 @@ import { captureWithIntelligence } from '../../core/capture.js';
 import { generateEmbedding } from '../../core/embeddings.js';
 import { ensureNamespace } from '../../core/namespaces.js';
 import { resolveNamespace } from '../../core/mappings.js';
+import { getVaultRoot } from '../../db/connection.js';
 import { formatNodeBrief } from '../format.js';
 
 export function captureCommand(): Command {
@@ -14,7 +15,7 @@ export function captureCommand(): Command {
     .option('--tags <tags>', 'Comma-separated tags')
     .option('--no-link', 'Skip auto-linking')
     .action(async (content, options) => {
-      const namespace = options.namespace || resolveNamespace(process.cwd()) || 'default';
+      const namespace = options.namespace || resolveNamespace(process.cwd(), getVaultRoot()) || 'default';
       ensureNamespace(namespace);
 
       const tags = options.tags ? options.tags.split(',').map((t: string) => t.trim()) : undefined;

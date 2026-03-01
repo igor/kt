@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { createDatabase, getDefaultDbPath } from './db/connection.js';
+import { createDatabase, resolveDatabase } from './db/connection.js';
 import { captureCommand } from './cli/commands/capture.js';
 import { showCommand } from './cli/commands/show.js';
 import { searchCommand } from './cli/commands/search.js';
@@ -21,9 +21,9 @@ import { serveCommand } from './cli/commands/serve.js';
 import { authCommand } from './cli/commands/auth.js';
 import { initCommand } from './cli/commands/init.js';
 
-// Initialize database
-const dbPath = process.env.KT_DB_PATH || getDefaultDbPath();
-createDatabase(dbPath);
+// Initialize database — walk-up resolution finds .kt/ per vault, falls back to ~/.kt/
+const resolved = resolveDatabase(process.cwd(), process.env.KT_DB_PATH);
+createDatabase(resolved.dbPath, resolved.vaultRoot);
 
 const program = new Command()
   .name('kt')

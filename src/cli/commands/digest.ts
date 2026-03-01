@@ -1,6 +1,6 @@
 import { resolveNamespace } from '../../core/mappings.js';
 import { generateDigest } from '../../core/digest.js';
-import { getDatabase } from '../../db/connection.js';
+import { getDatabase, getVaultRoot } from '../../db/connection.js';
 
 interface DigestCliOptions {
   days?: string;
@@ -21,7 +21,7 @@ function resolveProjectDir(namespace: string): string | undefined {
 }
 
 export async function runDigest(options: DigestCliOptions): Promise<void> {
-  const namespace = options.namespace || resolveNamespace(process.cwd());
+  const namespace = options.namespace || resolveNamespace(process.cwd(), getVaultRoot());
 
   if (!namespace) {
     console.log('No namespace mapped for this directory.');

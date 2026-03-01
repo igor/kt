@@ -5,6 +5,11 @@ import os from 'os';
 import * as sqliteVec from 'sqlite-vec';
 
 let db: Database.Database | null = null;
+let currentVaultRoot: string | null = null;
+
+export function getVaultRoot(): string | null {
+  return currentVaultRoot;
+}
 
 export interface DatabaseResolution {
   dbPath: string;
@@ -30,7 +35,8 @@ export function resolveDatabase(cwd: string, envOverride?: string): DatabaseReso
   return { dbPath: path.join(globalDir, 'kt.db'), vaultRoot: null };
 }
 
-export function createDatabase(dbPath: string): Database.Database {
+export function createDatabase(dbPath: string, vaultRoot?: string | null): Database.Database {
+  currentVaultRoot = vaultRoot ?? null;
   // Ensure directory exists
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
@@ -63,6 +69,7 @@ export function closeDatabase(): void {
   if (db) {
     db.close();
     db = null;
+    currentVaultRoot = null;
   }
 }
 
